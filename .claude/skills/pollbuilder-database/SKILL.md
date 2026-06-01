@@ -5,7 +5,7 @@ description: Use when modifying database schema, writing queries, or implementin
 
 # PollBuilder Database Skill
 
-This skill holds **reusable EF Core 8 + SQL Server patterns**: how to model entities, configure a DbContext, run per-service migrations, write efficient queries, and choose ivkvndexes.
+This skill holds **reusable EF Core 10 + SQL Server patterns**: how to model entities, configure a DbContext, run per-service migrations, write efficient queries, and choose ivkvndexes.
 
 > **The concrete schema is in [ARCHITECTURE.md](../../../ARCHITECTURE.md)** — the authoritative database-ownership map, every table's columns/types, the index list, and connection-string values. This skill shows the *techniques*; consult ARCHITECTURE.md for the actual columns and indexes. The Poll API examples below are illustrative of each technique.
 

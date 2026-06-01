@@ -64,13 +64,13 @@ Poll & Survey Builder is a **microservices-based** real-time polling platform bu
 | Component | Technology | Version |
 |---|---|---|
 | Frontend | React + TypeScript + Vite | React 18, Vite 5 |
-| API Gateway | ASP.NET Core + YARP | .NET 8 |
-| Poll Service | ASP.NET Core Web API | .NET 8 |
-| Vote Service | ASP.NET Core Web API + **SignalR** | .NET 8 |
-| Identity Service | ASP.NET Core Web API | .NET 8 |
+| API Gateway | ASP.NET Core + YARP | .NET 10 |
+| Poll Service | ASP.NET Core Web API | .NET 10 |
+| Vote Service | ASP.NET Core Web API + **SignalR** | .NET 10 |
+| Identity Service | ASP.NET Core Web API | .NET 10 |
 | Database | SQL Server (per-service DBs) | 2022 |
-| ORM | Entity Framework Core | 8.0 |
-| Real-Time | SignalR WebSocket | ASP.NET Core 8 |
+| ORM | Entity Framework Core | 10.0 |
+| Real-Time | SignalR WebSocket | ASP.NET Core 10 |
 | Auth | JWT Bearer (7-day expiry, validated at Gateway) | — |
 | Charts | Chart.js or Recharts | Latest |
 | SignalR client | `@microsoft/signalr` | Latest |
@@ -157,6 +157,8 @@ poll-service/
 │   │   ├── PollApi/                       ← ASP.NET Core Web API
 │   │   │   ├── Controllers/
 │   │   │   │   └── PollsController.cs      ← Poll CRUD endpoints
+│   │   │   ├── Common/
+│   │   │   │   └── Result.cs               ← Result<T> (per-service)
 │   │   │   ├── Services/
 │   │   │   │   ├── PollService.cs          ← Business logic
 │   │   │   │   └── PollCleanupService.cs   ← Background hosted service (auto-close expired)
@@ -279,7 +281,7 @@ poll-service/
 
 ### Per-service internal layering
 
-Every backend service follows the same layered structure: `Controllers/` → `Services/` → `Repositories/` → `Data/`, with `DTOs/`, `Models/`, and `Middleware/` alongside. Exceptions:
+Every backend service follows the same layered structure: `Controllers/` → `Services/` → `Repositories/` → `Data/`, with `DTOs/`, `Models/`, `Common/` (holds the per-service `Result<T>`), and `Middleware/` alongside. Exceptions:
 - **Vote API** adds a `Hubs/` folder for SignalR and a `PollClientService` for the inter-service HTTP call.
 - **Gateway** has no Controllers/Services/Repositories — only YARP configuration.
 - **Identity API** has no Repository layer (`AuthService` uses the DbContext directly).
@@ -545,9 +547,9 @@ JWT is validated **once, centrally, at the Gateway**. Downstream services trust 
 docker-compose up --build
   ├─ db            SQL Server 2022   1433  → hosts PollDb, VoteDb, IdentityDb
   ├─ gateway       YARP              5000 → 8080
-  ├─ poll-api      ASP.NET 8         5001 → 8080
-  ├─ vote-api      ASP.NET 8 + SignalR  5002 → 8080
-  ├─ identity-api  ASP.NET 8         5003 → 8080
+  ├─ poll-api      ASP.NET 10        5001 → 8080
+  ├─ vote-api      ASP.NET 10 + SignalR 5002 → 8080
+  ├─ identity-api  ASP.NET 10        5003 → 8080
   └─ frontend      Nginx             5173 → 80
 
 # Apply migrations once SQL Server is ready:

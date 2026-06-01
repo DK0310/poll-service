@@ -1,17 +1,17 @@
 ---
 name: pollbuilder-backend
-description: Use when implementing any microservice endpoint, service, repository, DTO, SignalR Hub, or inter-service communication in ASP.NET Core 8
+description: Use when implementing any microservice endpoint, service, repository, DTO, SignalR Hub, or inter-service communication in ASP.NET Core 10
 ---
 
 # Poll Builder — Backend Patterns Skill
 
-This skill holds **reusable ASP.NET Core 8 implementation patterns** for the backend services. The concrete examples use this project's classes so they drop straight in, but the patterns (layering, `Result<T>`, typed clients, broadcasting, middleware) transfer to any service.
+This skill holds **reusable ASP.NET Core 10 implementation patterns** for the backend services. The concrete examples use this project's classes so they drop straight in, but the patterns (layering, `Result<T>`, typed clients, broadcasting, middleware) transfer to any service.
 
 > **Project facts live in [ARCHITECTURE.md](../../../ARCHITECTURE.md)** — the service map and ports, per-service folder layout, endpoint list, Gateway routing table, and environment variables. This skill does not repeat them.
 
 ## The Layered Pattern (every service)
 
-Each service is an independent ASP.NET Core 8 project. Every request flows through the same layers:
+Each service is an independent ASP.NET Core 10 project. Every request flows through the same layers:
 
 ```
 Controller  → parse request, return status code (thin, no business logic)

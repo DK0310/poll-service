@@ -1,0 +1,47 @@
+using Microsoft.EntityFrameworkCore;
+using PollApi.Models;
+
+namespace PollApi.Data;
+
+public class PollDbContext : DbContext
+{
+    public PollDbContext(DbContextOptions<PollDbContext> options) : base(options) { }
+
+    public DbSet<Poll> Polls => Set<Poll>();
+    public DbSet<PollOption> PollOptions => Set<PollOption>();
+
+    protected override void OnModelCreating(ModelBuilder b)
+    {
+        b.Entity<Poll>(e =>
+        {
+            e.ToTable("Polls");
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Id).HasDefaultValueSql("NEWID()");
+            e.Property(p => p.Code).HasMaxLength(16).IsRequired();
+            e.HasIndex(p => p.Code).IsUnique();                 // primary lookup
+            e.Property(p => p.Question).HasMaxLength(500).IsRequired();
+            e.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(p => p.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            e.HasIndex(p => p.CreatorId);                        // "my polls" query
+            e.HasIndex(p => p.ExpiresAt);                        // cleanup query
+
+            // Computed properties are domain logic, not columns
+            e.Ignore(p => p.IsExpired);
+            e.Ignore(p => p.IsClosed);
+            e.Ignore(p => p.IsActive);
+        });
+
+        b.Entity<PollOption>(e =>
+        {
+            e.ToTable("PollOptions");
+            e.HasKey(o => o.Id);
+            e.Property(o => o.Id).HasDefaultValueSql("NEWID()");
+            e.Property(o => o.Text).HasMaxLength(500).IsRequired();
+            e.HasOne(o => o.Poll)
+             .WithMany(p => p.Options)
+             .HasForeignKey(o => o.PollId)
+             .OnDelete(DeleteBehavior.Cascade);                 // delete options with the poll
+            e.HasIndex(o => new { o.PollId, o.OptionIndex });   // ordered option lookup
+        });
+    }
+}

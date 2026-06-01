@@ -1,0 +1,62 @@
+# ── .NET / ASP.NET Core ─────────────────────────────────────
+bin/
+obj/
+out/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+project.lock.json
+artifacts/
+[Dd]ebug/
+[Rr]elease/
+[Bb]in/
+[Oo]bj/
+*.dll
+*.pdb
+
+# EF Core / SQL
+*.mdf
+*.ldf
+*.ndf
+
+# ── Node / Frontend (Vite + React) ──────────────────────────
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+coverage/
+
+# ── Environment / secrets ───────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pfx
+appsettings.*.local.json
+secrets.json
+
+# ── Docker ──────────────────────────────────────────────────
+# (compose override files are local-only)
+docker-compose.override.yml
+
+# ── IDEs / OS ───────────────────────────────────────────────
+.vs/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ── Test / build output ─────────────────────────────────────
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+BenchmarkDotNet.Artifacts/

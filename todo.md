@@ -24,14 +24,16 @@ Phased plan to take this repo from **docs-only** to a **deployed, tested, real-t
 
 **Goal:** a clean monorepo skeleton everyone can clone and build.
 
-- [ ] Add a root `.gitignore` (.NET `bin/`/`obj/`, `node_modules/`, `.env`, `*.user`, build output)
-- [ ] Confirm/extend the top-level folder layout from [ARCHITECTURE.md → Project Structure](ARCHITECTURE.md) (`services/`, `frontend/`, `.github/workflows/`)
-- [ ] Decide solution-per-service vs. one solution (plan uses one `.sln` per service)
-- [ ] Add a placeholder `README.md` (filled out in Phase 11)
-- [ ] Agree on branch strategy (feature branches → PR → `main`) and commit conventions
-- [ ] Install local prerequisites: .NET 8 SDK, Node 20, Docker Desktop, EF Core tools (`dotnet tool install --global dotnet-ef`)
+- [x] Add a root `.gitignore` (.NET `bin/`/`obj/`, `node_modules/`, `.env`, `*.user`, build output) — verified it catches `bin/`, `node_modules/`, `.env`
+- [x] Confirm/extend the top-level folder layout from [ARCHITECTURE.md → Project Structure](ARCHITECTURE.md) (`services/`, `frontend/`, `.github/workflows/`) — created with `.gitkeep` placeholders
+- [x] Decide solution-per-service vs. one solution — **decided: one `.sln` per service** (documented in [CONTRIBUTING.md](CONTRIBUTING.md))
+- [x] Add a placeholder `README.md` (filled out in Phase 11)
+- [x] Agree on branch strategy (feature branches → PR → `main`) and commit conventions — documented in [CONTRIBUTING.md](CONTRIBUTING.md)
+- [x] Install local prerequisites — toolchain verified present (.NET SDK 10, Node 22, Docker 29 / Compose v5, dotnet-ef 10); required versions documented in [CONTRIBUTING.md](CONTRIBUTING.md)
+- [x] **Target framework decided: `net10.0`** — ARCHITECTURE.md, README, CONTRIBUTING, Dockerfile templates, and test csproj refs all updated from .NET 8 → .NET 10
+- [x] Added [.editorconfig](.editorconfig) for consistent C#/TS formatting (supports the "clean codebase" criterion)
 
-**Definition of Done:** repo clones cleanly; `.gitignore` prevents build artifacts being committed; team aligned on workflow.
+**Definition of Done:** repo clones cleanly; `.gitignore` prevents build artifacts being committed; team aligned on workflow. ✅ **Met** (nothing committed yet — awaiting your go-ahead).
 
 ---
 
@@ -40,18 +42,18 @@ Phased plan to take this repo from **docs-only** to a **deployed, tested, real-t
 **Goal:** the foundational service — create and read polls — with tests, before anything depends on it.
 **Skills:** `pollbuilder-backend`, `pollbuilder-database`, `pollbuilder-testing`, `test-driven-development`.
 
-- [ ] Scaffold `services/poll-api/` (ASP.NET Core 8 Web API + `PollApi.sln` + `PollApi.Tests`)
-- [ ] Models: `Poll`, `PollOption`, `PollStatus` enum + computed `IsExpired`/`IsClosed`/`IsActive` (see [schema](ARCHITECTURE.md))
-- [ ] `PollDbContext` with fluent config (unique `Code`, enum→string, defaults, indexes, cascade delete)
-- [ ] EF migration `InitialCreate` for `PollDb`
-- [ ] `PollRepository` (get-by-code with ordered options, add, update, delete, get-by-creator, get-expired)
-- [ ] `PollService` returning `Result<T>` — validation (question required, 2–6 options, no empty options), unique 5-char code generation
-- [ ] DTOs: `CreatePollRequest`, `PollResponse` (+ `OptionResponse`)
-- [ ] `PollsController`: `POST /api/polls`, `GET /api/polls/{code}` (close/delete/my-polls stubbed for Phase 6)
-- [ ] `ErrorHandlingMiddleware` + `Program.cs` wiring
-- [ ] **Unit tests:** create success + each validation failure; get found/not-found
+- [x] Scaffold `services/poll-api/` (ASP.NET Core **10** Web API + `PollApi.sln` + `PollApi.Tests`) — classic `.sln` (SDK defaulted to `.slnx`), EF Core 10.0.8 + Moq/Mvc.Testing/InMemory
+- [x] Models: `Poll`, `PollOption`, `PollStatus` enum + computed `IsExpired`/`IsClosed`/`IsActive` (see [schema](ARCHITECTURE.md))
+- [x] `PollDbContext` with fluent config (unique `Code`, enum→string, defaults, indexes, cascade delete)
+- [x] EF migration `InitialCreate` for `PollDb` — verified schema matches ARCHITECTURE.md (unique Code, enum nvarchar(20), NEWID()/GETUTCDATE(), cascade, composite + CreatorId/ExpiresAt indexes)
+- [x] `PollRepository` (get-by-code with ordered options, add, update, delete, get-by-creator, get-expired) — methods `virtual` for mockability
+- [x] `PollService` returning `Result<T>` — validation (question required, 2–6 options, no empty options), unique 5-char code generation (+ Close/Delete/GetByCreator logic ready for Phase 6)
+- [x] DTOs: `CreatePollRequest`, `PollResponse` (+ `OptionResponse`); plus `Common/Result<T>`
+- [x] `PollsController`: `POST /api/polls`, `GET /api/polls/{code}` (close/delete/my-polls deferred to Phase 6)
+- [x] `ErrorHandlingMiddleware` + `Program.cs` wiring (+ `public partial class Program` for Phase 9 integration tests)
+- [x] **Unit tests:** create success + each validation failure; get found/not-found; +Close/Delete creator checks — **14/14 passing**
 
-**Definition of Done:** `dotnet test services/poll-api/PollApi.sln` green; can create and fetch a poll against a local DB.
+**Definition of Done:** `dotnet test services/poll-api/PollApi.sln` green ✅ (14/14, 0 warnings). Migration generated; applying it to a live DB happens in Phase 7 (docker SQL Server).
 
 ---
 
