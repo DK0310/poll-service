@@ -1,8 +1,18 @@
 # Poll & Survey Builder — Architecture
 
+> **This document is the authoritative source for this project's structure, data flows, schema, topology, and architectural decisions.**
+>
+> The `.claude/skills/pollbuilder-*` skills cover *reusable* patterns, conventions, decision trees, and checklists. Whenever a skill needs a concrete project fact — a folder path, a port, a table column, an endpoint, an environment variable, a deploy target — it defers to this file. If something here disagrees with a skill, this file wins.
+
+---
+
 ## System Overview
 
-Poll Builder is a **microservices-based** real-time polling platform built for the AMD201 Advanced Microservices Deployment coursework. Users create multiple-choice polls, share a short link, and collect votes with **live results** powered by SignalR WebSockets.
+Poll & Survey Builder is a **microservices-based** real-time polling platform built for the AMD201 Advanced Microservices Deployment coursework. A creator writes a multiple-choice question with up to 6 options, shares a short link (e.g. `/poll/7fGh2`), and collects votes. The results page shows a **live bar chart** that updates in real time via SignalR WebSockets — no page refresh.
+
+**Architecture style:** Microservices behind an API Gateway. Each service owns its domain, its database, and its deployment lifecycle, and is independently deployable. Services talk to each other with synchronous HTTP only when necessary.
+
+**The Golden Rule:** Each service owns its data and its domain. No service ever touches another service's database — cross-service data is fetched via HTTP API calls.
 
 ---
 
@@ -14,13 +24,14 @@ Poll Builder is a **microservices-based** real-time polling platform built for t
                           │  React + Vite     │
                           │  Port 5173        │
                           └────────┬──────────┘
-                                   │
+                                   │ HTTP / WebSocket
                           ┌────────▼──────────┐
                           │   API Gateway      │
                           │   (YARP)           │
                           │   Port 5000        │
                           │   • JWT validation │
                           │   • Route matching │
+                          │   • X-User-Id      │
                           └──┬──────┬──────┬──┘
              ┌───────────────┤      │      ├────────────────┐
              │               │      │      │                │
@@ -28,7 +39,7 @@ Poll Builder is a **microservices-based** real-time polling platform built for t
     │ Identity API     │      │      │      │   │   Vote API              │
     │ POST /api/auth/* │      │      │      │   │   POST /polls/*/vote    │
     │ Port 5003        │      │      │      │   │   GET  /polls/*/results │
-    └────────┬─────────┘      │      │      │   │   WS   /hubs/poll      │
+    └────────┬─────────┘      │      │      │   │   WS   /hubs/poll       │
              │                │      │      │   │   Port 5002             │
     ┌────────▼─────────┐      │      │      │   └────────────┬────────────┘
     │   IdentityDb     │      │      │      │                │
@@ -60,7 +71,10 @@ Poll Builder is a **microservices-based** real-time polling platform built for t
 | Database | SQL Server (per-service DBs) | 2022 |
 | ORM | Entity Framework Core | 8.0 |
 | Real-Time | SignalR WebSocket | ASP.NET Core 8 |
+| Auth | JWT Bearer (7-day expiry, validated at Gateway) | — |
 | Charts | Chart.js or Recharts | Latest |
+| SignalR client | `@microsoft/signalr` | Latest |
+| Password hashing | BCrypt | — |
 | Containers | Docker (multi-stage) | Latest |
 | Orchestration | docker-compose | v2 |
 | CI/CD | GitHub Actions | — |
@@ -76,14 +90,14 @@ Poll Builder is a **microservices-based** real-time polling platform built for t
 | Property | Value |
 |---|---|
 | Port | 5000 (external), 8080 (container) |
-| Responsibility | Route requests, validate JWT, set X-User-Id header |
+| Responsibility | Route requests, validate JWT, set `X-User-Id` header, proxy WebSockets |
 | Database | None (stateless) |
 | Key Tech | YARP reverse proxy |
 
 The Gateway is the **single entry point** for all external traffic. It:
 - Routes requests to the correct backend service based on URL patterns
 - Validates JWT tokens for protected endpoints
-- Extracts user ID from JWT and forwards it as `X-User-Id` header
+- Extracts the user ID from the JWT and forwards it as the `X-User-Id` header
 - Proxies WebSocket connections for SignalR
 
 ### 2. Poll API
@@ -93,7 +107,8 @@ The Gateway is the **single entry point** for all external traffic. It:
 | Port | 5001 (external), 8080 (container) |
 | Responsibility | Poll CRUD — create, read, close, delete, list |
 | Database | `PollDb` — Polls, PollOptions tables |
-| Key Endpoints | `POST /api/polls`, `GET /api/polls/{code}`, `PATCH /api/polls/{code}/close` |
+| Owns | Polls, PollOptions |
+| Consumes | Nothing — self-contained |
 
 ### 3. Vote API
 
@@ -102,10 +117,9 @@ The Gateway is the **single entry point** for all external traffic. It:
 | Port | 5002 (external), 8080 (container) |
 | Responsibility | Vote submission, results aggregation, **real-time broadcasting** |
 | Database | `VoteDb` — Votes table |
-| Key Endpoints | `POST /api/polls/{code}/vote`, `GET /api/polls/{code}/results` |
+| Owns | Votes |
+| Consumes | Calls Poll API over HTTP to validate a poll exists and is active before accepting a vote |
 | Special | **SignalR Hub** at `/hubs/poll` for live vote updates |
-
-The Vote API calls the Poll API over HTTP to validate that a poll exists and is active before accepting a vote.
 
 ### 4. Identity API
 
@@ -114,7 +128,161 @@ The Vote API calls the Poll API over HTTP to validate that a poll exists and is 
 | Port | 5003 (external), 8080 (container) |
 | Responsibility | User registration, login, JWT token generation |
 | Database | `IdentityDb` — Users table |
-| Key Endpoints | `POST /api/auth/register`, `POST /api/auth/login` |
+| Owns | Users |
+| Consumes | Nothing — self-contained |
+
+---
+
+## Service Topology & Ports
+
+Services call each other by **Docker service name** (e.g. `http://poll-api:8080`), never by `localhost`. Only the Gateway and Frontend are meant to be reachable from outside.
+
+| Service | Local Port | Container Port | Docker Hostname | Internal URL |
+|---|---|---|---|---|
+| SQL Server | 1433 | 1433 | `db` | `db:1433` |
+| API Gateway | 5000 | 8080 | `gateway` | `http://gateway:8080` |
+| Poll API | 5001 | 8080 | `poll-api` | `http://poll-api:8080` |
+| Vote API | 5002 | 8080 | `vote-api` | `http://vote-api:8080` |
+| Identity API | 5003 | 8080 | `identity-api` | `http://identity-api:8080` |
+| Frontend | 5173 | 80 | `frontend` | `http://frontend:80` |
+
+---
+
+## Project Structure
+
+```
+poll-service/
+├── services/
+│   ├── poll-api/                          ← Poll management microservice
+│   │   ├── PollApi/                       ← ASP.NET Core Web API
+│   │   │   ├── Controllers/
+│   │   │   │   └── PollsController.cs      ← Poll CRUD endpoints
+│   │   │   ├── Services/
+│   │   │   │   ├── PollService.cs          ← Business logic
+│   │   │   │   └── PollCleanupService.cs   ← Background hosted service (auto-close expired)
+│   │   │   ├── Repositories/
+│   │   │   │   └── PollRepository.cs       ← Data access
+│   │   │   ├── DTOs/
+│   │   │   │   ├── CreatePollRequest.cs
+│   │   │   │   └── PollResponse.cs
+│   │   │   ├── Models/
+│   │   │   │   ├── Poll.cs
+│   │   │   │   └── PollOption.cs
+│   │   │   ├── Data/
+│   │   │   │   ├── PollDbContext.cs
+│   │   │   │   └── Migrations/
+│   │   │   ├── Middleware/
+│   │   │   │   └── ErrorHandlingMiddleware.cs
+│   │   │   └── Program.cs                  ← DI registration, pipeline
+│   │   ├── PollApi.Tests/                  ← xUnit + Moq
+│   │   │   ├── Services/PollServiceTests.cs
+│   │   │   ├── Integration/PollEndpointTests.cs
+│   │   │   ├── Integration/CustomWebAppFactory.cs
+│   │   │   └── PollApi.Tests.csproj
+│   │   ├── Dockerfile                      ← Multi-stage build
+│   │   └── PollApi.sln
+│   │
+│   ├── vote-api/                          ← Voting + real-time microservice
+│   │   ├── VoteApi/                       ← ASP.NET Core + SignalR
+│   │   │   ├── Controllers/
+│   │   │   │   └── VotesController.cs      ← Vote submission + results
+│   │   │   ├── Hubs/
+│   │   │   │   └── PollHub.cs              ← SignalR hub for live results
+│   │   │   ├── Services/
+│   │   │   │   ├── VoteService.cs          ← Vote logic + broadcast
+│   │   │   │   └── PollClientService.cs    ← HTTP client to Poll API
+│   │   │   ├── Repositories/
+│   │   │   │   └── VoteRepository.cs
+│   │   │   ├── DTOs/
+│   │   │   │   ├── VoteRequest.cs
+│   │   │   │   └── VoteResultsResponse.cs
+│   │   │   ├── Models/
+│   │   │   │   └── Vote.cs
+│   │   │   ├── Data/
+│   │   │   │   ├── VoteDbContext.cs
+│   │   │   │   └── Migrations/
+│   │   │   ├── Middleware/
+│   │   │   │   └── ErrorHandlingMiddleware.cs
+│   │   │   └── Program.cs
+│   │   ├── VoteApi.Tests/
+│   │   │   ├── Services/VoteServiceTests.cs
+│   │   │   ├── Integration/VoteEndpointTests.cs
+│   │   │   ├── Integration/CustomWebAppFactory.cs
+│   │   │   └── VoteApi.Tests.csproj
+│   │   ├── Dockerfile
+│   │   └── VoteApi.sln
+│   │
+│   ├── identity-api/                      ← Auth microservice
+│   │   ├── IdentityApi/                   ← ASP.NET Core Web API
+│   │   │   ├── Controllers/
+│   │   │   │   └── AuthController.cs       ← Register/login
+│   │   │   ├── Services/
+│   │   │   │   └── AuthService.cs          ← JWT generation
+│   │   │   ├── Models/
+│   │   │   │   └── User.cs
+│   │   │   ├── Data/
+│   │   │   │   ├── IdentityDbContext.cs
+│   │   │   │   └── Migrations/
+│   │   │   └── Program.cs
+│   │   ├── IdentityApi.Tests/
+│   │   │   ├── Services/AuthServiceTests.cs
+│   │   │   └── IdentityApi.Tests.csproj
+│   │   ├── Dockerfile
+│   │   └── IdentityApi.sln
+│   │
+│   └── gateway/                           ← API Gateway (YARP)
+│       ├── Gateway/
+│       │   ├── Program.cs                  ← YARP config, JWT validation, CORS
+│       │   └── appsettings.json            ← Route + cluster definitions
+│       ├── Dockerfile
+│       └── Gateway.sln
+│
+├── frontend/                              ← React SPA
+│   ├── src/
+│   │   ├── api/
+│   │   │   └── api.ts                      ← Axios instance (→ Gateway)
+│   │   ├── types/
+│   │   │   └── poll.types.ts               ← TypeScript interfaces for API data
+│   │   ├── hooks/
+│   │   │   ├── useCreatePoll.ts            ← Poll creation
+│   │   │   ├── usePollInfo.ts              ← Fetch poll by code
+│   │   │   ├── useVote.ts                  ← Submit vote
+│   │   │   ├── useLiveResults.ts           ← SignalR + initial results
+│   │   │   └── useMyPolls.ts               ← Fetch creator's polls
+│   │   ├── components/
+│   │   │   ├── PollForm.tsx                ← Create poll form (question + options)
+│   │   │   ├── VoteForm.tsx                ← Vote selection interface
+│   │   │   ├── LiveBarChart.tsx            ← Animated results bar chart
+│   │   │   ├── PollCard.tsx                ← Poll summary card
+│   │   │   └── ShareLink.tsx               ← Copyable share link
+│   │   ├── pages/
+│   │   │   ├── CreatePollPage.tsx          ← Poll creation interface
+│   │   │   ├── VotePage.tsx                ← Voting page (by code)
+│   │   │   ├── ResultsPage.tsx             ← Live results page
+│   │   │   ├── MyPollsPage.tsx             ← Creator's poll dashboard
+│   │   │   ├── LoginPage.tsx               ← Login form
+│   │   │   └── RegisterPage.tsx            ← Registration form
+│   │   └── App.tsx                         ← Router setup
+│   ├── .env                                ← VITE_API_URL, VITE_HUB_URL (point to Gateway)
+│   ├── vite.config.ts
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── nginx.conf                          ← SPA fallback + proxy /api and /hubs to Gateway
+│   └── Dockerfile
+│
+├── .github/workflows/
+│   └── ci-cd.yml                           ← Lint/test → build/push → deploy ALL services
+├── docker-compose.yml                      ← Local orchestration (all services)
+├── ARCHITECTURE.md                         ← This file (authoritative)
+└── README.md
+```
+
+### Per-service internal layering
+
+Every backend service follows the same layered structure: `Controllers/` → `Services/` → `Repositories/` → `Data/`, with `DTOs/`, `Models/`, and `Middleware/` alongside. Exceptions:
+- **Vote API** adds a `Hubs/` folder for SignalR and a `PollClientService` for the inter-service HTTP call.
+- **Gateway** has no Controllers/Services/Repositories — only YARP configuration.
+- **Identity API** has no Repository layer (`AuthService` uses the DbContext directly).
 
 ---
 
@@ -122,7 +290,15 @@ The Vote API calls the Poll API over HTTP to validate that a poll exists and is 
 
 ### Database-Per-Service Pattern
 
-Each service owns its data exclusively. No service queries another service's database.
+Each service owns its data exclusively and has its own SQL Server database, DbContext, and migration history. No service queries another service's database.
+
+| Service | Database | DbContext | Tables |
+|---|---|---|---|
+| Poll API | `PollDb` | `PollDbContext` | `Polls`, `PollOptions` |
+| Vote API | `VoteDb` | `VoteDbContext` | `Votes` |
+| Identity API | `IdentityDb` | `IdentityDbContext` | `Users` |
+
+> In development, all three databases can live in the same SQL Server instance (same `db` container, different `Database=` values). In production they may be separate databases or separate instances. EF Core migrations create each database independently.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -147,17 +323,77 @@ Each service owns its data exclusively. No service queries another service's dat
 └─────────────────┴──────────────────┴────────────────────────┘
 ```
 
+### Entities
+
+**Poll** (`PollDb.Polls`)
+
+| Property | Type | Notes |
+|---|---|---|
+| Id | Guid | PK, `NEWID()` default |
+| Code | string | 5-char shareable identifier, **unique + indexed** |
+| Question | string | The poll question |
+| Status | PollStatus enum | Open / Closed (stored as string, max 20) |
+| ExpiresAt | DateTime? | Optional expiration |
+| CreatorId | Guid? | From JWT — **NOT a FK** (no Users table here) |
+| CreatedAt | DateTime | UTC, `GETUTCDATE()` default |
+| Options | ICollection\<PollOption\> | Navigation (1-to-many, cascade delete) |
+
+Computed (not persisted): `IsExpired`, `IsClosed`, `IsActive`.
+
+**PollOption** (`PollDb.PollOptions`)
+
+| Property | Type | Notes |
+|---|---|---|
+| Id | Guid | PK, `NEWID()` default |
+| PollId | Guid | FK → Polls (cascade delete) |
+| OptionIndex | int | Display order, 0-based |
+| Text | string | Option text |
+
+**Vote** (`VoteDb.Votes`)
+
+| Property | Type | Notes |
+|---|---|---|
+| Id | Guid | PK, `NEWID()` default |
+| PollCode | string | Which poll — **NOT a FK** (different database) |
+| OptionIndex | int | Which option was chosen |
+| VoterToken | string | Browser fingerprint / session cookie |
+| VotedAt | DateTime | UTC, `GETUTCDATE()` default |
+
+**User** (`IdentityDb.Users`)
+
+| Property | Type | Notes |
+|---|---|---|
+| Id | Guid | PK, `NEWID()` default |
+| Email | string | **Unique** login |
+| PasswordHash | string | BCrypt hash |
+| CreatedAt | DateTime | UTC, `GETUTCDATE()` default |
+
+### Indexes
+
+| Database | Index | Purpose |
+|---|---|---|
+| PollDb | `Polls.Code` (UNIQUE) | Primary lookup by share code |
+| PollDb | `Polls.CreatorId` | "My polls" query |
+| PollDb | `Polls.ExpiresAt` | Cleanup service query |
+| PollDb | `PollOptions.(PollId, OptionIndex)` | Ordered option lookup |
+| VoteDb | `Votes.(PollCode, VoterToken)` (UNIQUE) | One vote per voter per poll |
+| VoteDb | `Votes.(PollCode, OptionIndex)` | Vote-count aggregation |
+| VoteDb | `Votes.VotedAt` | Analytics (votes over time) |
+| IdentityDb | `Users.Email` (UNIQUE) | Login lookup |
+
 ### Cross-Service References
 
-- `Poll.CreatorId` stores a Guid from the JWT (NOT a FK to Users — that table is in IdentityDb)
-- `Vote.PollCode` stores a string (NOT a FK to Polls — that table is in PollDb)
-- Cross-service validation happens via HTTP API calls
+- `Poll.CreatorId` stores a Guid taken from the JWT (via the `X-User-Id` header) — **not** a FK to `Users` (that table lives in IdentityDb).
+- `Vote.PollCode` stores a string — **not** a FK to `Polls` (that table lives in PollDb).
+- Cross-service validation happens via HTTP: the Vote API calls the Poll API to confirm a poll exists and is active before accepting a vote. If the Poll API is down, the Vote API rejects the vote rather than accepting a potentially invalid one.
 
 ---
 
 ## API Endpoints
 
-### Poll API (via Gateway)
+All external endpoints are reached **through the Gateway**.
+
+### Poll API
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
@@ -167,7 +403,7 @@ Each service owns its data exclusively. No service queries another service's dat
 | DELETE | `/api/polls/{code}` | Required (creator) | Delete poll |
 | GET | `/api/polls/my-polls` | Required | List creator's polls |
 
-### Vote API (via Gateway)
+### Vote API
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
@@ -175,77 +411,168 @@ Each service owns its data exclusively. No service queries another service's dat
 | GET | `/api/polls/{code}/results` | No | Get vote results |
 | WS | `/hubs/poll` | No | SignalR live results |
 
-### Identity API (via Gateway)
+### Identity API
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/api/auth/register` | No | Register new user |
+| POST | `/api/auth/register` | No | Register new user, receive JWT |
 | POST | `/api/auth/login` | No | Login, receive JWT |
+
+### Gateway Routing Table (YARP)
+
+Routes are evaluated by `Order` (lowest first). More specific routes (vote, results, SignalR) **must** come before the catch-all poll route. Protected routes carry a transform that copies the JWT `nameidentifier` claim into the `X-User-Id` request header.
+
+| Order | Route | Match | Cluster | Auth | Transform |
+|---|---|---|---|---|---|
+| 1 | vote-submit | `/api/polls/{code}/vote` | vote-api | No | — |
+| 2 | vote-results | `/api/polls/{code}/results` | vote-api | No | — |
+| 3 | signalr-hub | `/hubs/{**remainder}` | vote-api | No | (WebSocket) |
+| 4 | auth-route | `/api/auth/{**remainder}` | identity-api | No | — |
+| 5 | polls-protected | `/api/polls/my-polls` | poll-api | authenticated | `X-User-Id` ← claim |
+| 6 | polls-close | `/api/polls/{code}/close` (PATCH) | poll-api | authenticated | `X-User-Id` ← claim |
+| 7 | polls-delete | `/api/polls/{code}` (DELETE) | poll-api | authenticated | `X-User-Id` ← claim |
+| 100 | polls-public | `/api/polls/{**remainder}` | poll-api | No | — |
+
+Clusters: `poll-api → http://poll-api:8080`, `vote-api → http://vote-api:8080`, `identity-api → http://identity-api:8080`.
 
 ---
 
-## Real-Time Architecture (SignalR)
+## Data Flows
+
+### External request (Frontend → Gateway → Service)
+
+All external traffic goes through the Gateway. The frontend only knows the Gateway URL (`VITE_API_URL`); it has no knowledge of individual service URLs.
+
+```
+FRONTEND (React)
+  Component → Hook → axios.post('/api/polls', data)   (→ Gateway URL)
+        │ HTTP (JSON)
+        ▼
+API GATEWAY (YARP)
+  1. Match route pattern (by Order)
+  2. Validate JWT if the route requires auth
+  3. On success, add X-User-Id header from the JWT claim
+  4. Forward to the target service; return its response
+        │ HTTP (forwarded)
+        ▼
+TARGET MICROSERVICE
+  Controller → Service → Repository → Database
+  Returns response → Gateway → Frontend
+```
+
+### Service-to-service (Vote API → Poll API)
+
+When the Vote API needs poll data it calls the Poll API **directly by Docker service name** — not through the Gateway. Internal calls skip auth validation.
+
+```
+VOTE API
+  VoteService needs to know if a poll exists and is active
+  → PollClientService.GetPollAsync(code)
+        │ HTTP GET  http://poll-api:8080/api/polls/{code}
+        ▼
+POLL API
+  PollsController.GetPoll(code) → PollService.GetByCodeAsync(code)
+  ← 200 OK + PollResponse  (poll exists / is active)
+  ← 404 Not Found          (poll doesn't exist)
+```
+
+### SignalR (real-time results)
 
 ```
 1. Client opens Results Page
-   → Fetches initial results via GET /api/polls/{code}/results
-   → Connects to SignalR hub at /hubs/poll (via Gateway)
-   → Calls JoinPollGroup(pollCode) to subscribe
+   → GET /api/polls/{code}/results          (initial snapshot, via Gateway)
+   → Connect to /hubs/poll                  (Gateway proxies WebSocket to Vote API)
+   → invoke("JoinPollGroup", pollCode)      (subscribe to this poll's group)
+   → listen on "ReceiveVoteUpdate"
 
 2. Another user votes
    → POST /api/polls/{code}/vote → Gateway → Vote API
-   → VoteService saves vote to VoteDb
-   → VoteService broadcasts updated results via IHubContext
-   → All connected clients receive ReceiveVoteUpdate event
-   → Charts update in real-time (no page refresh)
+   → VoteService saves the vote to VoteDb
+   → VoteService broadcasts updated results via IHubContext to Group(code)
+   → all connected clients receive "ReceiveVoteUpdate" → charts update live
 
-3. Client leaves page
-   → Calls LeavePollGroup(pollCode)
-   → Disconnects from SignalR hub
+3. Client leaves the page
+   → invoke("LeavePollGroup", pollCode) → disconnect
 ```
+
+### Authentication (cross-service)
+
+JWT is validated **once, centrally, at the Gateway**. Downstream services trust the `X-User-Id` header the Gateway sets after validation.
+
+```
+1. POST /api/auth/register|login → Gateway → Identity API
+   ← Identity API returns a JWT (7-day expiry, signed with Jwt:Secret)
+
+2. Frontend stores it: localStorage.setItem('token', jwt)
+   Axios request interceptor attaches: Authorization: Bearer <jwt>
+
+3. POST /api/polls (protected) with token
+   → Gateway validates the JWT
+   → if valid: forwards request + sets X-User-Id from the nameidentifier claim
+   → if invalid/missing: returns 401 before the request reaches any service
+
+4. Poll API reads X-User-Id (it does not re-validate the JWT)
+```
+
+`Jwt:Secret` **must be identical** in the Gateway and the Identity API (the Gateway validates tokens the Identity API signs).
 
 ---
 
-## Communication Patterns
+## Environment Configuration
 
-### External Traffic (Frontend → Gateway → Service)
+| Service | Variable | Dev Value | Purpose |
+|---|---|---|---|
+| Gateway | `Jwt__Secret` | `dev-secret-min-32-characters-here!` | JWT validation key |
+| Gateway | `Frontend__Url` | `http://localhost:5173` | CORS origin |
+| Poll API | `ConnectionStrings__Default` | `Server=db,1433;Database=PollDb;...` | PollDb connection |
+| Vote API | `ConnectionStrings__Default` | `Server=db,1433;Database=VoteDb;...` | VoteDb connection |
+| Vote API | `Services__PollApi` | `http://poll-api:8080` | Inter-service base URL |
+| Vote API | `Gateway__Url` | `http://gateway:8080` | CORS origin for SignalR |
+| Identity API | `ConnectionStrings__Default` | `Server=db,1433;Database=IdentityDb;...` | IdentityDb connection |
+| Identity API | `Jwt__Secret` | `dev-secret-min-32-characters-here!` | JWT signing key |
+| Frontend | `VITE_API_URL` | `http://localhost:5000/api` | Gateway REST URL |
+| Frontend | `VITE_HUB_URL` | `http://localhost:5000/hubs/poll` | SignalR via Gateway |
 
-All external requests go through the API Gateway. The frontend only knows the Gateway URL.
-
-### Internal Traffic (Service → Service)
-
-The Vote API calls the Poll API directly using Docker service names:
-
-```
-Vote API  ──HTTP GET──▶  http://poll-api:8080/api/polls/{code}
-```
-
-This bypasses the Gateway — internal service-to-service calls don't need auth validation.
+> **Shared secret:** `Jwt__Secret` must be identical in the Gateway and Identity API. Dev values shown above are placeholders — production values come from the platform's secret store, never from git.
 
 ---
 
 ## Deployment Architecture
 
-### Local Development
+### Local development (docker-compose)
 
-```bash
-docker-compose up --build
-# Starts: db, gateway, poll-api, vote-api, identity-api, frontend
-# All services accessible via localhost ports
 ```
+docker-compose up --build
+  ├─ db            SQL Server 2022   1433  → hosts PollDb, VoteDb, IdentityDb
+  ├─ gateway       YARP              5000 → 8080
+  ├─ poll-api      ASP.NET 8         5001 → 8080
+  ├─ vote-api      ASP.NET 8 + SignalR  5002 → 8080
+  ├─ identity-api  ASP.NET 8         5003 → 8080
+  └─ frontend      Nginx             5173 → 80
+
+# Apply migrations once SQL Server is ready:
+docker-compose exec poll-api     dotnet ef database update
+docker-compose exec vote-api     dotnet ef database update
+docker-compose exec identity-api dotnet ef database update
+```
+
+Nginx in the frontend container proxies `/api/` and `/hubs/` to `gateway:8080` (with WebSocket upgrade headers on `/hubs/`) — it never proxies directly to individual services.
 
 ### Production (Render)
 
-Each service is deployed as a separate Render Web Service pulling from Docker Hub:
+Each service is deployed as a separate Render Web Service pulling its image from Docker Hub:
 
 ```
-GitHub push → GitHub Actions CI/CD
-  → lint + test all services
-  → build 5 Docker images → push to Docker Hub
-  → trigger Render deploy webhooks (one per service)
+Render Services:
+  ├─ Gateway Web Service
+  ├─ Poll API Web Service
+  ├─ Vote API Web Service
+  ├─ Identity API Web Service
+  ├─ Frontend Web Service
+  └─ SQL Server Database
 ```
 
-### CI/CD Pipeline
+### CI/CD Pipeline (GitHub Actions — `.github/workflows/ci-cd.yml`)
 
 ```
 Push to main
@@ -254,73 +581,46 @@ Push to main
   │   ├─ dotnet test services/poll-api/PollApi.sln
   │   ├─ dotnet test services/vote-api/VoteApi.sln
   │   ├─ dotnet test services/identity-api/IdentityApi.sln
-  │   └─ npm run lint (frontend)
+  │   └─ npm ci && npm run lint   (frontend)
   │
-  ├─ Phase 2: Build & Push Docker Images
+  ├─ Phase 2: Build & Push Docker images (only on main)
   │   ├─ pollbuilder-gateway:latest
   │   ├─ pollbuilder-poll-api:latest
   │   ├─ pollbuilder-vote-api:latest
   │   ├─ pollbuilder-identity-api:latest
   │   └─ pollbuilder-frontend:latest
+  │       (multi-stage builds, GHA layer cache)
   │
   └─ Phase 3: Deploy to Render (webhook per service)
+      curl -X POST $RENDER_HOOK_<SERVICE>
 ```
 
----
+Docker image naming: `pollbuilder-{service}` (e.g. `pollbuilder-poll-api`) on Docker Hub.
 
-## Project Structure
+### Required GitHub Secrets
 
-```
-poll-service/
-├── services/
-│   ├── poll-api/              ← Poll management microservice
-│   │   ├── PollApi/           ← ASP.NET Core Web API
-│   │   ├── PollApi.Tests/     ← xUnit tests
-│   │   ├── Dockerfile
-│   │   └── PollApi.sln
-│   │
-│   ├── vote-api/              ← Voting + real-time microservice
-│   │   ├── VoteApi/           ← ASP.NET Core + SignalR
-│   │   ├── VoteApi.Tests/
-│   │   ├── Dockerfile
-│   │   └── VoteApi.sln
-│   │
-│   ├── identity-api/          ← Auth microservice
-│   │   ├── IdentityApi/
-│   │   ├── IdentityApi.Tests/
-│   │   ├── Dockerfile
-│   │   └── IdentityApi.sln
-│   │
-│   └── gateway/               ← API Gateway (YARP)
-│       ├── Gateway/
-│       ├── Dockerfile
-│       └── Gateway.sln
-│
-├── frontend/                  ← React SPA
-│   ├── src/
-│   ├── Dockerfile
-│   └── nginx.conf
-│
-├── .github/workflows/
-│   └── ci-cd.yml
-├── docker-compose.yml
-├── ARCHITECTURE.md            ← This file
-└── README.md
-```
-
----
-
-## Environment Configuration
-
-| Service | Key Variables |
+| Secret | Purpose |
 |---|---|
-| **Gateway** | `Jwt__Secret`, `Frontend__Url` |
-| **Poll API** | `ConnectionStrings__Default` (PollDb) |
-| **Vote API** | `ConnectionStrings__Default` (VoteDb), `Services__PollApi` |
-| **Identity API** | `ConnectionStrings__Default` (IdentityDb), `Jwt__Secret` |
-| **Frontend** | `VITE_API_URL` (Gateway), `VITE_HUB_URL` (SignalR via Gateway) |
+| `DOCKERHUB_USERNAME` | Docker Hub login |
+| `DOCKERHUB_TOKEN` | Docker Hub auth token |
+| `RENDER_HOOK_GATEWAY` | Gateway deploy webhook |
+| `RENDER_HOOK_POLL_API` | Poll API deploy webhook |
+| `RENDER_HOOK_VOTE_API` | Vote API deploy webhook |
+| `RENDER_HOOK_IDENTITY_API` | Identity API deploy webhook |
+| `RENDER_HOOK_FRONTEND` | Frontend deploy webhook |
 
-> `Jwt__Secret` must be identical in Gateway and Identity API.
+---
+
+## Frontend Routes
+
+| Path | Page | Purpose |
+|---|---|---|
+| `/` | CreatePollPage | Poll creation form |
+| `/poll/:code` | VotePage | Voting page |
+| `/poll/:code/results` | ResultsPage | Live results (SignalR) |
+| `/my-polls` | MyPollsPage | Creator's poll dashboard |
+| `/login` | LoginPage | Login |
+| `/register` | RegisterPage | Registration |
 
 ---
 
@@ -329,10 +629,13 @@ poll-service/
 | Decision | Rationale |
 |---|---|
 | **Microservices over monolith** | Independent deployment, scaling, and development per domain |
-| **YARP API Gateway** | .NET-native reverse proxy with built-in transforms for JWT → X-User-Id |
+| **YARP API Gateway** | .NET-native reverse proxy with built-in transforms for JWT → `X-User-Id` |
 | **Database per service** | Data ownership, no cross-service schema dependencies |
-| **SignalR in Vote API only** | Only voting needs real-time; other services use REST |
-| **PollCode as string in VoteDb** | No FK across databases; validated via HTTP call to Poll API |
-| **JWT at Gateway only** | Centralized auth; services trust Gateway's X-User-Id header |
-| **Docker multi-stage builds** | ~200MB production images instead of ~900MB |
+| **SignalR in Vote API only** | Only voting needs real-time; other services use plain REST |
+| **`PollCode` as a string in VoteDb** | No FK across databases; validated via HTTP call to Poll API |
+| **`CreatorId` as a plain Guid in PollDb** | No FK to Users (different DB); value comes from the JWT via `X-User-Id` |
+| **JWT validated at Gateway only** | Centralized auth; services trust the Gateway's `X-User-Id` header |
+| **`Result<T>` instead of exceptions** | Explicit control flow for expected failures across all services |
+| **Typed `HttpClient` for inter-service calls** | Correct `HttpClient` lifetime; avoids socket exhaustion |
+| **Docker multi-stage builds** | ~200 MB production images instead of ~900 MB |
 | **Voter deduplication via token** | Session/fingerprint-based — no login required for voters |

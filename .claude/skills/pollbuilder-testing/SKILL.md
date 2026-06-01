@@ -5,47 +5,15 @@ description: Use when writing unit tests, integration tests, or verifying logic 
 
 # Poll Builder — Testing Skill
 
-## Overview
+This skill holds **reusable testing patterns** for the microservices: xUnit + Moq unit tests, `WebApplicationFactory` integration tests, the test decision tree, naming convention, and per-method checklist.
 
-Each microservice has its own test project using **xUnit** as the test framework and **Moq** for mocking. Unit tests verify service-layer logic in isolation. Integration tests use **WebApplicationFactory** to verify the full HTTP pipeline per service.
+> **Project facts live in [ARCHITECTURE.md](../../../ARCHITECTURE.md)** — the test-project layout per service is part of the authoritative folder structure there. This skill does not repeat it.
 
-**Rule:** Every service method must have at least one success-path test and one failure-path test. Each service is tested independently — inter-service calls are mocked.
-
----
-
-## Test Project Structure
-
-```
-services/
-├── poll-api/
-│   ├── PollApi/                            ← Production code
-│   └── PollApi.Tests/                      ← Tests for Poll API
-│       ├── Services/
-│       │   └── PollServiceTests.cs
-│       ├── Integration/
-│       │   ├── PollEndpointTests.cs
-│       │   └── CustomWebAppFactory.cs
-│       └── PollApi.Tests.csproj
-│
-├── vote-api/
-│   ├── VoteApi/
-│   └── VoteApi.Tests/                      ← Tests for Vote API
-│       ├── Services/
-│       │   └── VoteServiceTests.cs
-│       ├── Integration/
-│       │   ├── VoteEndpointTests.cs
-│       │   └── CustomWebAppFactory.cs
-│       └── VoteApi.Tests.csproj
-│
-└── identity-api/
-    ├── IdentityApi/
-    └── IdentityApi.Tests/                  ← Tests for Identity API
-        ├── Services/
-        │   └── AuthServiceTests.cs
-        └── IdentityApi.Tests.csproj
-```
-
-**Each service has its own test project.** Tests run independently — you can test Poll API without Vote API running.
+**Principles:**
+- Each service has its own test project; tests run independently (you can test Poll API without Vote API running).
+- **Every service method gets at least one success-path test and one failure-path test.**
+- Inter-service calls are **mocked** — a unit test never depends on another service being up.
+- Unit tests verify service logic in isolation; integration tests verify the full HTTP pipeline of a single service with an in-memory database.
 
 ---
 
@@ -703,7 +671,9 @@ Examples:
 
 ## Cross-References
 
-- **Service implementations** → `pollbuilder-backend/SKILL.md`
-- **Database per service** → `pollbuilder-database/SKILL.md`
-- **CI/CD test step** → `pollbuilder-devops/SKILL.md`
-- **Frontend testing** → `pollbuilder-frontend/SKILL.md`
+- **Authoritative project & test-project structure** → [ARCHITECTURE.md](../../../ARCHITECTURE.md)
+- **Service implementations under test** → `pollbuilder-backend`
+- **System design principles** → `pollbuilder-architecture`
+- **Database per service** → `pollbuilder-database`
+- **CI/CD test step** → `pollbuilder-devops`
+- **Frontend** → `pollbuilder-frontend`

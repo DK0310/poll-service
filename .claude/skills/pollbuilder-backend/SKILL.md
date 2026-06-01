@@ -5,50 +5,27 @@ description: Use when implementing any microservice endpoint, service, repositor
 
 # Poll Builder — Backend Patterns Skill
 
-## Overview
+This skill holds **reusable ASP.NET Core 8 implementation patterns** for the backend services. The concrete examples use this project's classes so they drop straight in, but the patterns (layering, `Result<T>`, typed clients, broadcasting, middleware) transfer to any service.
 
-The backend is composed of **four microservices**, each an independent ASP.NET Core 8 project with its own solution, database context, Dockerfile, and deployment lifecycle. Every service follows the same internal layered pattern: Controller → Service → Repository. Services return `Result<T>` instead of throwing exceptions.
+> **Project facts live in [ARCHITECTURE.md](../../../ARCHITECTURE.md)** — the service map and ports, per-service folder layout, endpoint list, Gateway routing table, and environment variables. This skill does not repeat them.
 
-| Service | Port | Responsibility |
-|---|---|---|
-| **API Gateway** | 5000 | YARP reverse proxy, JWT validation, request routing |
-| **Poll API** | 5001 | Poll CRUD (create, get, close, delete, list) |
-| **Vote API** | 5002 | Vote submission, results, SignalR live broadcasting |
-| **Identity API** | 5003 | User registration, login, JWT token generation |
+## The Layered Pattern (every service)
 
----
-
-## Service-Level Project Structure
-
-Each microservice follows the same internal structure:
+Each service is an independent ASP.NET Core 8 project. Every request flows through the same layers:
 
 ```
-services/{service-name}/
-├── {ServiceName}/                          ← ASP.NET Core project
-│   ├── Controllers/                        ← HTTP endpoints
-│   ├── Services/                           ← Business logic
-│   ├── Repositories/                       ← Data access
-│   ├── DTOs/                               ← Request/response models
-│   ├── Models/                             ← Database entities
-│   ├── Data/
-│   │   ├── {Service}DbContext.cs           ← EF Core DbContext
-│   │   └── Migrations/
-│   ├── Middleware/
-│   │   └── ErrorHandlingMiddleware.cs
-│   └── Program.cs                          ← DI registration, pipeline
-│
-├── {ServiceName}.Tests/                    ← Unit tests (xUnit + Moq)
-├── Dockerfile                              ← Multi-stage build
-└── {ServiceName}.sln                       ← Solution file
+Controller  → parse request, return status code (thin, no business logic)
+   Service  → business rules + validation, returns Result<T> (never throws for expected failures)
+Repository  → the only layer that touches the DbContext
 ```
 
-**Exception:** Vote API also has a `Hubs/` folder for SignalR. Gateway has no Controllers/Services — just YARP config.
+Cross-cutting collaborators: a typed **client service** for inter-service HTTP calls (Vote → Poll), a **SignalR Hub** + `IHubContext` broadcast for real-time (Vote API), and **error-handling middleware** in every service. See [ARCHITECTURE.md](../../../ARCHITECTURE.md) for which service has which.
 
 ---
 
 ## Result\<T\> Pattern
 
-**Used in every service.** Each service has its own `Result<T>` class.
+**Used in every service.** Each service has its own `Result<T>` class (or a shared project).
 
 ```csharp
 public class Result<T>
@@ -780,85 +757,19 @@ app.Run();
 
 ### Route Configuration (appsettings.json)
 
+The full route + cluster table (orders, methods, transforms, cluster addresses) is in **[ARCHITECTURE.md → Gateway Routing Table](../../../ARCHITECTURE.md)**. The reusable patterns to apply when editing it:
+
+- **A route per concern**, each pointing at a cluster (`vote-api`, `poll-api`, `identity-api`), each cluster mapping to a Docker service address.
+- **Order matters.** Specific paths (`/vote`, `/results`, `/hubs`, `/my-polls`) get low `Order` values; the catch-all (`/api/polls/{**remainder}`) gets a high one so it never shadows them.
+- **Protected routes** carry `"AuthorizationPolicy": "authenticated"` plus a transform that copies the JWT `nameidentifier` claim into an `X-User-Id` request header:
+
 ```json
-{
-  "ReverseProxy": {
-    "Routes": {
-      "vote-submit": {
-        "ClusterId": "vote-api",
-        "Match": { "Path": "/api/polls/{code}/vote" },
-        "Order": 1
-      },
-      "vote-results": {
-        "ClusterId": "vote-api",
-        "Match": { "Path": "/api/polls/{code}/results" },
-        "Order": 2
-      },
-      "signalr-hub": {
-        "ClusterId": "vote-api",
-        "Match": { "Path": "/hubs/{**remainder}" },
-        "Order": 3
-      },
-      "auth-route": {
-        "ClusterId": "identity-api",
-        "Match": { "Path": "/api/auth/{**remainder}" },
-        "Order": 4
-      },
-      "polls-protected": {
-        "ClusterId": "poll-api",
-        "AuthorizationPolicy": "authenticated",
-        "Match": { "Path": "/api/polls/my-polls" },
-        "Order": 5,
-        "Transforms": [
-          { "RequestHeader": "X-User-Id", "Set": "{claim:http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier}" }
-        ]
-      },
-      "polls-close": {
-        "ClusterId": "poll-api",
-        "AuthorizationPolicy": "authenticated",
-        "Match": { "Path": "/api/polls/{code}/close", "Methods": ["PATCH"] },
-        "Order": 6,
-        "Transforms": [
-          { "RequestHeader": "X-User-Id", "Set": "{claim:http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier}" }
-        ]
-      },
-      "polls-delete": {
-        "ClusterId": "poll-api",
-        "AuthorizationPolicy": "authenticated",
-        "Match": { "Path": "/api/polls/{code}", "Methods": ["DELETE"] },
-        "Order": 7,
-        "Transforms": [
-          { "RequestHeader": "X-User-Id", "Set": "{claim:http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier}" }
-        ]
-      },
-      "polls-public": {
-        "ClusterId": "poll-api",
-        "Match": { "Path": "/api/polls/{**remainder}" },
-        "Order": 100
-      }
-    },
-    "Clusters": {
-      "poll-api": {
-        "Destinations": {
-          "default": { "Address": "http://poll-api:8080" }
-        }
-      },
-      "vote-api": {
-        "Destinations": {
-          "default": { "Address": "http://vote-api:8080" }
-        }
-      },
-      "identity-api": {
-        "Destinations": {
-          "default": { "Address": "http://identity-api:8080" }
-        }
-      }
-    }
-  }
-}
+"Transforms": [
+  { "RequestHeader": "X-User-Id", "Set": "{claim:http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier}" }
+]
 ```
 
-**Key design decision:** The Gateway uses YARP transforms to extract the user ID from the JWT and set it as an `X-User-Id` header. Downstream services read this header instead of validating JWT themselves.
+**Key design decision:** the Gateway extracts the user ID from the JWT and forwards it as `X-User-Id`. Downstream services read that header instead of validating the JWT themselves.
 
 ---
 
@@ -938,3 +849,14 @@ public class PollCleanupService : BackgroundService
 | Route service-to-service via Gateway | Call directly: `http://poll-api:8080` | Gateway is for external traffic |
 | Return entity from controller | Return DTO via `.From(entity)` | Never expose internals |
 | Skip `.AllowCredentials()` for SignalR | Always include in CORS | WebSocket requirement |
+
+---
+
+## Cross-References
+
+- **Project structure, endpoints, Gateway routing, env vars** → [ARCHITECTURE.md](../../../ARCHITECTURE.md)
+- **System design principles & decision trees** → `pollbuilder-architecture`
+- **Schema, DbContext config, migrations, queries** → `pollbuilder-database`
+- **Frontend integration** → `pollbuilder-frontend`
+- **Testing services & endpoints** → `pollbuilder-testing`
+- **Docker, CI/CD, deployment** → `pollbuilder-devops`

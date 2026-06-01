@@ -5,62 +5,17 @@ description: Use when building React components, pages, hooks, or integrating wi
 
 # Poll Builder — Frontend Patterns Skill
 
-## Overview
+This skill holds **reusable React 18 + TypeScript + Vite patterns**: the Gateway-only API client, custom-hook conventions, the SignalR lifecycle hook, and component patterns. The examples use this project's types so they drop straight in.
 
-The frontend is a React 18 SPA built with TypeScript and Vite. It communicates exclusively with the **API Gateway** — never directly with individual microservices. Axios handles REST API calls. SignalR (via `@microsoft/signalr`) handles real-time vote updates. Components are small and focused. Complex logic (API calls, state management, WebSocket connections) lives in custom hooks.
+> **Project facts live in [ARCHITECTURE.md](../../../ARCHITECTURE.md)** — the `frontend/` folder layout, the route table, and the `VITE_*` environment variables. This skill does not repeat them.
 
-**Core rule:** Components render UI. Hooks handle logic. All traffic goes through the Gateway.
-
----
-
-## Project Structure
-
-```
-frontend/
-├── src/
-│   ├── api/
-│   │   └── api.ts                    ← Axios instance (→ Gateway)
-│   │
-│   ├── types/
-│   │   └── poll.types.ts             ← TypeScript interfaces for API data
-│   │
-│   ├── hooks/
-│   │   ├── useCreatePoll.ts          ← Poll creation
-│   │   ├── usePollInfo.ts            ← Fetch poll by code
-│   │   ├── useVote.ts                ← Submit vote
-│   │   ├── useLiveResults.ts         ← SignalR + initial results
-│   │   └── useMyPolls.ts             ← Fetch creator's polls
-│   │
-│   ├── components/
-│   │   ├── PollForm.tsx              ← Create poll form (question + options)
-│   │   ├── VoteForm.tsx              ← Vote selection interface
-│   │   ├── LiveBarChart.tsx           ← Animated results bar chart
-│   │   ├── PollCard.tsx              ← Poll summary card
-│   │   └── ShareLink.tsx             ← Copyable share link
-│   │
-│   ├── pages/
-│   │   ├── CreatePollPage.tsx        ← Poll creation interface
-│   │   ├── VotePage.tsx              ← Voting page (by code)
-│   │   ├── ResultsPage.tsx           ← Live results page
-│   │   ├── MyPollsPage.tsx           ← Creator's poll dashboard
-│   │   ├── LoginPage.tsx             ← Login form
-│   │   └── RegisterPage.tsx          ← Registration form
-│   │
-│   └── App.tsx                        ← Router setup
-│
-├── .env                               ← VITE_API_URL, VITE_HUB_URL
-├── vite.config.ts
-├── package.json
-└── tsconfig.json
-```
+**Core rule:** Components render UI. Hooks hold logic (API calls, state, WebSocket connections). **All traffic goes through the API Gateway** — the frontend never knows an individual service's URL.
 
 ---
 
 ## API Client Setup
 
-**Location:** `frontend/src/api/api.ts`
-
-All REST calls go through this Axios instance, which points to the **Gateway**.
+All REST calls go through a single Axios instance pointed at the **Gateway** (`VITE_API_URL`). It injects the JWT and handles 401 globally — define it once and import it everywhere.
 
 ```typescript
 import axios from 'axios';
@@ -714,6 +669,8 @@ export function ResultsPage() {
 
 ## Routing
 
+Pattern: a `BrowserRouter` with one `<Route>` per page. The authoritative path → page map is in [ARCHITECTURE.md → Frontend Routes](../../../ARCHITECTURE.md).
+
 **Location:** `frontend/src/App.tsx`
 
 ```typescript
@@ -745,13 +702,7 @@ export default function App() {
 
 ## Environment Variables
 
-```env
-# frontend/.env
-VITE_API_URL=http://localhost:5000/api
-VITE_HUB_URL=http://localhost:5000/hubs/poll
-```
-
-Both point to the **Gateway** (port 5000). The frontend never directly contacts any microservice.
+The frontend reads `VITE_API_URL` (REST) and `VITE_HUB_URL` (SignalR), both pointing at the **Gateway** — never at an individual service. The concrete values are in [ARCHITECTURE.md → Environment Configuration](../../../ARCHITECTURE.md). Access them via `import.meta.env.VITE_*` with a localhost fallback (as shown in the API client and `useLiveResults` above).
 
 ---
 
@@ -772,8 +723,9 @@ Both point to the **Gateway** (port 5000). The frontend never directly contacts 
 
 ## Cross-References
 
-- **Backend API endpoints** → `pollbuilder-backend/SKILL.md`
-- **System architecture** → `pollbuilder-architecture/SKILL.md`
-- **Deploying frontend** → `pollbuilder-devops/SKILL.md`
-- **Database schema** → `pollbuilder-database/SKILL.md`
-- **Testing** → `pollbuilder-testing/SKILL.md`
+- **Authoritative folder layout, routes, env vars, API contract** → [ARCHITECTURE.md](../../../ARCHITECTURE.md)
+- **Backend API endpoints & DTO shapes** → `pollbuilder-backend`
+- **System design principles** → `pollbuilder-architecture`
+- **Deploying the frontend (Docker/Nginx)** → `pollbuilder-devops`
+- **Database schema** → `pollbuilder-database`
+- **Testing** → `pollbuilder-testing`
