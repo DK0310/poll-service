@@ -63,7 +63,7 @@ Poll & Survey Builder is a **microservices-based** real-time polling platform bu
 
 | Component | Technology | Version |
 |---|---|---|
-| Frontend | React + TypeScript + Vite | React 18, Vite 5 |
+| Frontend | React + TypeScript + Vite | React 19, Vite 8 |
 | API Gateway | ASP.NET Core + YARP | .NET 10 |
 | Poll Service | ASP.NET Core Web API | .NET 10 |
 | Vote Service | ASP.NET Core Web API + **SignalR** | .NET 10 |
@@ -218,13 +218,19 @@ poll-service/
 │   │   ├── IdentityApi/                   ← ASP.NET Core Web API
 │   │   │   ├── Controllers/
 │   │   │   │   └── AuthController.cs       ← Register/login
+│   │   │   ├── Common/
+│   │   │   │   └── Result.cs               ← Result<T> (per-service)
 │   │   │   ├── Services/
-│   │   │   │   └── AuthService.cs          ← JWT generation
+│   │   │   │   └── AuthService.cs          ← BCrypt + JWT generation
+│   │   │   ├── DTOs/
+│   │   │   │   └── AuthDtos.cs             ← RegisterRequest, LoginRequest, AuthResponse
 │   │   │   ├── Models/
 │   │   │   │   └── User.cs
 │   │   │   ├── Data/
 │   │   │   │   ├── IdentityDbContext.cs
 │   │   │   │   └── Migrations/
+│   │   │   ├── Middleware/
+│   │   │   │   └── ErrorHandlingMiddleware.cs
 │   │   │   └── Program.cs
 │   │   ├── IdentityApi.Tests/
 │   │   │   ├── Services/AuthServiceTests.cs
@@ -422,18 +428,20 @@ All external endpoints are reached **through the Gateway**.
 
 ### Gateway Routing Table (YARP)
 
-Routes are evaluated by `Order` (lowest first). More specific routes (vote, results, SignalR) **must** come before the catch-all poll route. Protected routes carry a transform that copies the JWT `nameidentifier` claim into the `X-User-Id` request header.
+Routes are evaluated by `Order` (lowest first). More specific routes (vote, results, SignalR) **must** come before the catch-all poll route. Protected routes require the `authenticated` authorization policy.
 
-| Order | Route | Match | Cluster | Auth | Transform |
+A **gateway-wide YARP code transform** (`AddRequestTransform`) sets the `X-User-Id` header from the validated JWT's `sub` claim on every proxied request, and **strips any client-supplied `X-User-Id` first** (anti-spoofing). Config-based `{claim:...}` tokens are not supported by YARP, so this is done in code. On public routes the header is set only when a valid token is present (optional-auth create attribution); otherwise it is removed.
+
+| Order | Route | Match | Cluster | Auth | X-User-Id |
 |---|---|---|---|---|---|
 | 1 | vote-submit | `/api/polls/{code}/vote` | vote-api | No | — |
 | 2 | vote-results | `/api/polls/{code}/results` | vote-api | No | — |
 | 3 | signalr-hub | `/hubs/{**remainder}` | vote-api | No | (WebSocket) |
 | 4 | auth-route | `/api/auth/{**remainder}` | identity-api | No | — |
-| 5 | polls-protected | `/api/polls/my-polls` | poll-api | authenticated | `X-User-Id` ← claim |
-| 6 | polls-close | `/api/polls/{code}/close` (PATCH) | poll-api | authenticated | `X-User-Id` ← claim |
-| 7 | polls-delete | `/api/polls/{code}` (DELETE) | poll-api | authenticated | `X-User-Id` ← claim |
-| 100 | polls-public | `/api/polls/{**remainder}` | poll-api | No | — |
+| 5 | polls-protected | `/api/polls/my-polls` | poll-api | authenticated | ← `sub` |
+| 6 | polls-close | `/api/polls/{code}/close` (PATCH) | poll-api | authenticated | ← `sub` |
+| 7 | polls-delete | `/api/polls/{code}` (DELETE) | poll-api | authenticated | ← `sub` |
+| 100 | polls-public | `/api/polls/{**remainder}` | poll-api | No | ← `sub` (if token present) |
 
 Clusters: `poll-api → http://poll-api:8080`, `vote-api → http://vote-api:8080`, `identity-api → http://identity-api:8080`.
 
@@ -510,7 +518,8 @@ JWT is validated **once, centrally, at the Gateway**. Downstream services trust 
 
 3. POST /api/polls (protected) with token
    → Gateway validates the JWT
-   → if valid: forwards request + sets X-User-Id from the nameidentifier claim
+   → if valid: forwards request + sets X-User-Id from the JWT `sub` claim
+     (YARP code transform; any client-supplied X-User-Id is stripped first)
    → if invalid/missing: returns 401 before the request reaches any service
 
 4. Poll API reads X-User-Id (it does not re-validate the JWT)
@@ -544,21 +553,23 @@ JWT is validated **once, centrally, at the Gateway**. Downstream services trust 
 ### Local development (docker-compose)
 
 ```
+cp .env.example .env   # then fill in SA_PASSWORD + JWT_SECRET
 docker-compose up --build
-  ├─ db            SQL Server 2022   1433  → hosts PollDb, VoteDb, IdentityDb
-  ├─ gateway       YARP              5000 → 8080
-  ├─ poll-api      ASP.NET 10        5001 → 8080
-  ├─ vote-api      ASP.NET 10 + SignalR 5002 → 8080
-  ├─ identity-api  ASP.NET 10        5003 → 8080
-  └─ frontend      Nginx             5173 → 80
-
-# Apply migrations once SQL Server is ready:
-docker-compose exec poll-api     dotnet ef database update
-docker-compose exec vote-api     dotnet ef database update
-docker-compose exec identity-api dotnet ef database update
+  ├─ db            SQL Server 2022      (internal only; healthcheck-gated)
+  ├─ poll-api      ASP.NET 10           (internal only)
+  ├─ vote-api      ASP.NET 10 + SignalR (internal only)
+  ├─ identity-api  ASP.NET 10           (internal only)
+  ├─ gateway       YARP                 5000 → 8080   (entry point)
+  └─ frontend      Nginx                5173 → 80     (entry point)
 ```
 
-Nginx in the frontend container proxies `/api/` and `/hubs/` to `gateway:8080` (with WebSocket upgrade headers on `/hubs/`) — it never proxies directly to individual services.
+**Only the Gateway (5000) and Frontend (5173) publish host ports.** The backend services and SQL Server communicate on the internal Docker network by service name; they are not reachable from the host.
+
+**Migrations apply automatically on startup.** Each DB service calls `Database.MigrateAsync()` at boot, retrying while SQL Server initializes (the `db` healthcheck gates `depends_on`, and `EnableRetryOnFailure` covers transient faults). No manual `dotnet ef database update` step is needed — the runtime images don't include the SDK. Migration is skipped for non-relational providers (the in-memory DB used by integration tests).
+
+Secrets (`SA_PASSWORD`, `JWT_SECRET`) come from a gitignored root `.env` via `${VAR}` interpolation; `.env.example` is the committed template.
+
+Nginx in the frontend container proxies `/api/` and `/hubs/` to `gateway:8080` (with WebSocket upgrade headers on `/hubs/`) — it never proxies directly to individual services. The SPA is built with relative URLs (`VITE_API_URL=/api`, `VITE_HUB_URL=/hubs/poll`) so the browser calls the frontend's own origin and Nginx forwards to the Gateway.
 
 ### Production (Render)
 

@@ -1,0 +1,81 @@
+name: pollbuilder
+
+services:
+  # ── Database (shared instance, one DB per service) ──────────
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${SA_PASSWORD}
+    volumes:
+      - sqldata:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q \"SELECT 1\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # ── Poll API ────────────────────────────────────────────────
+  poll-api:
+    build:
+      context: ./services/poll-api
+    environment:
+      ConnectionStrings__Default: "Server=db,1433;Database=PollDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ── Vote API (+ SignalR) ────────────────────────────────────
+  vote-api:
+    build:
+      context: ./services/vote-api
+    environment:
+      ConnectionStrings__Default: "Server=db,1433;Database=VoteDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;"
+      Services__PollApi: "http://poll-api:8080"
+      Gateway__Url: "http://gateway:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      poll-api:
+        condition: service_started
+
+  # ── Identity API ────────────────────────────────────────────
+  identity-api:
+    build:
+      context: ./services/identity-api
+    environment:
+      ConnectionStrings__Default: "Server=db,1433;Database=IdentityDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;"
+      Jwt__Secret: ${JWT_SECRET}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ── API Gateway (only external entry point besides frontend) ─
+  gateway:
+    build:
+      context: ./services/gateway
+    environment:
+      Jwt__Secret: ${JWT_SECRET}
+      Frontend__Url: "http://localhost:5173"
+    ports:
+      - "5000:8080"
+    depends_on:
+      - poll-api
+      - vote-api
+      - identity-api
+
+  # ── Frontend (Nginx serves the built SPA, proxies to gateway) ─
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: /api
+        VITE_HUB_URL: /hubs/poll
+    ports:
+      - "5173:80"
+    depends_on:
+      - gateway
+
+volumes:
+  sqldata:

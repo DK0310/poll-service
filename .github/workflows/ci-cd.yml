@@ -1,0 +1,157 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  NODE_VERSION: "22"
+
+jobs:
+  # ── Phase 1: Lint & Test (runs on every push and PR) ────────
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Test Poll API
+        run: dotnet test services/poll-api/PollApi.sln --configuration Release
+
+      - name: Test Vote API
+        run: dotnet test services/vote-api/VoteApi.sln --configuration Release
+
+      - name: Test Identity API
+        run: dotnet test services/identity-api/IdentityApi.sln --configuration Release
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Frontend build
+        working-directory: frontend
+        run: npm run build
+
+  # ── Phase 2: Build & Push Docker images (main only) ─────────
+  build-and-push:
+    name: Build & Push Images
+    needs: lint-and-test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push Poll API
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/poll-api
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/pollbuilder-poll-api:latest
+          cache-from: type=gha,scope=poll-api
+          cache-to: type=gha,mode=max,scope=poll-api
+
+      - name: Build & push Vote API
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/vote-api
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/pollbuilder-vote-api:latest
+          cache-from: type=gha,scope=vote-api
+          cache-to: type=gha,mode=max,scope=vote-api
+
+      - name: Build & push Identity API
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/identity-api
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/pollbuilder-identity-api:latest
+          cache-from: type=gha,scope=identity-api
+          cache-to: type=gha,mode=max,scope=identity-api
+
+      - name: Build & push Gateway
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/gateway
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/pollbuilder-gateway:latest
+          cache-from: type=gha,scope=gateway
+          cache-to: type=gha,mode=max,scope=gateway
+
+      - name: Build & push Frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/pollbuilder-frontend:latest
+          build-args: |
+            VITE_API_URL=/api
+            VITE_HUB_URL=/hubs/poll
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  # ── Phase 3: Deploy to Render (main only) ───────────────────
+  # Each step no-ops until its RENDER_HOOK_* secret is configured.
+  deploy:
+    name: Deploy to Render
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy Poll API
+        if: ${{ env.HOOK != '' }}
+        env:
+          HOOK: ${{ secrets.RENDER_HOOK_POLL_API }}
+        run: curl -fsS -X POST "$HOOK"
+
+      - name: Deploy Vote API
+        if: ${{ env.HOOK != '' }}
+        env:
+          HOOK: ${{ secrets.RENDER_HOOK_VOTE_API }}
+        run: curl -fsS -X POST "$HOOK"
+
+      - name: Deploy Identity API
+        if: ${{ env.HOOK != '' }}
+        env:
+          HOOK: ${{ secrets.RENDER_HOOK_IDENTITY_API }}
+        run: curl -fsS -X POST "$HOOK"
+
+      - name: Deploy Gateway
+        if: ${{ env.HOOK != '' }}
+        env:
+          HOOK: ${{ secrets.RENDER_HOOK_GATEWAY }}
+        run: curl -fsS -X POST "$HOOK"
+
+      - name: Deploy Frontend
+        if: ${{ env.HOOK != '' }}
+        env:
+          HOOK: ${{ secrets.RENDER_HOOK_FRONTEND }}
+        run: curl -fsS -X POST "$HOOK"

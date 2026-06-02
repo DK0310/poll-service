@@ -62,6 +62,36 @@ docs(architecture): document SignalR flow
 
 ---
 
+## Local secrets (.NET User Secrets)
+
+**No real secrets live in committed files.** `appsettings.json` ships with non-secret placeholders (e.g. `Password=__SET_VIA_USER_SECRETS_OR_ENV__`). Supply real local values via **User Secrets** (stored in your Windows user profile, never in the repo); production reads from environment variables (docker-compose / Render).
+
+First-time local setup per backend service (UserSecretsId is already in each `.csproj`):
+
+```bash
+# Poll API
+dotnet user-secrets set "ConnectionStrings:Default" \
+  "Server=localhost,1433;Database=PollDb;User Id=sa;Password=<your-local-pw>;TrustServerCertificate=True;" \
+  --project services/poll-api/PollApi
+
+# Vote API
+dotnet user-secrets set "ConnectionStrings:Default" \
+  "Server=localhost,1433;Database=VoteDb;User Id=sa;Password=<your-local-pw>;TrustServerCertificate=True;" \
+  --project services/vote-api/VoteApi
+
+# Identity API — added in Phase 6 (ConnectionStrings:Default + Jwt:Secret)
+```
+
+- User Secrets load **only in the Development environment**. `dotnet run` defaults to Development locally and picks them up automatically.
+- For EF commands against a real local DB, run in Development so secrets load:
+  `ASPNETCORE_ENVIRONMENT=Development dotnet ef database update --project services/poll-api/PollApi`
+  (or set `ConnectionStrings__Default` as an env var). For docker, the connection string comes from compose env vars.
+- Inspect/clear: `dotnet user-secrets list --project <proj>` / `dotnet user-secrets clear --project <proj>`.
+
+> Never commit: real DB passwords, `Jwt__Secret`, SQL Server `SA_PASSWORD`, Docker Hub credentials, Render deploy hooks. Those belong in User Secrets (local), GitHub Actions Secrets (CI), or the Render secret store (prod).
+
+---
+
 ## Definition of Done (per task)
 
 - Code builds and **tests pass** (`dotnet test` / `npm run lint`) — verify with real commands, don't assume.

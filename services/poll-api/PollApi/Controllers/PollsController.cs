@@ -28,6 +28,16 @@ public class PollsController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
+    // ── GET /api/polls/my-polls ─────────────────────────────────
+    // Literal segment wins over {code}; the Gateway only routes here with a valid JWT.
+    [HttpGet("my-polls")]
+    public async Task<IActionResult> MyPolls()
+    {
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var polls = await _service.GetByCreatorAsync(userId);
+        return Ok(polls);
+    }
+
     // ── GET /api/polls/{code} ───────────────────────────────────
     [HttpGet("{code}")]
     public async Task<IActionResult> GetPoll(string code)
@@ -38,5 +48,42 @@ public class PollsController : ControllerBase
             : NotFound(new { error = result.Error });
     }
 
-    // close / delete / my-polls are added in Phase 6 (require auth + X-User-Id enforcement)
+    // ── PATCH /api/polls/{code}/close ───────────────────────────
+    [HttpPatch("{code}/close")]
+    public async Task<IActionResult> Close(string code)
+    {
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _service.CloseAsync(code, userId);
+        if (result.IsSuccess) return Ok(result.Value);
+        return MapFailure(result.Error!);
+    }
+
+    // ── DELETE /api/polls/{code} ────────────────────────────────
+    [HttpDelete("{code}")]
+    public async Task<IActionResult> Delete(string code)
+    {
+        if (!TryGetUserId(out var userId)) return Unauthorized();
+        var result = await _service.DeleteAsync(code, userId);
+        if (result.IsSuccess) return NoContent();
+        return MapFailure(result.Error!);
+    }
+
+    /// <summary>Reads the user id the Gateway forwards in X-User-Id after validating the JWT.</summary>
+    private bool TryGetUserId(out Guid userId)
+    {
+        userId = Guid.Empty;
+        return Request.Headers.TryGetValue("X-User-Id", out var value)
+            && Guid.TryParse(value.ToString(), out userId);
+    }
+
+    // poll-api has no auth scheme registered (the Gateway validates JWTs), so we return
+    // status codes directly rather than Forbid()/Challenge() which require a scheme.
+    private IActionResult MapFailure(string error)
+    {
+        if (error.Contains("not found", StringComparison.OrdinalIgnoreCase))
+            return NotFound(new { error });
+        if (error.Contains("not the poll creator", StringComparison.OrdinalIgnoreCase))
+            return StatusCode(StatusCodes.Status403Forbidden, new { error });
+        return BadRequest(new { error });
+    }
 }

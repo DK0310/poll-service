@@ -1,17 +1,38 @@
 using Microsoft.EntityFrameworkCore;
-using PollApi.Data;
-using PollApi.Middleware;
-using PollApi.Repositories;
-using PollApi.Services;
+using VoteApi.Data;
+using VoteApi.Hubs;
+using VoteApi.Middleware;
+using VoteApi.Repositories;
+using VoteApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<PollDbContext>(opt =>
+const string SignalRCors = "SignalR";
+
+builder.Services.AddDbContext<VoteDbContext>(opt =>
     opt.UseSqlServer(builder.Configuration.GetConnectionString("Default"),
         sql => sql.EnableRetryOnFailure()));
 
-builder.Services.AddScoped<PollRepository>();
-builder.Services.AddScoped<PollService>();
+builder.Services.AddScoped<VoteRepository>();
+builder.Services.AddScoped<VoteService>();
+builder.Services.AddSignalR();
+
+// CORS for SignalR — credentials must be allowed for the WebSocket.
+// In practice the browser connects via the Gateway (which also sets CORS); this is the
+// documented origin for direct/proxied SignalR traffic (ARCHITECTURE → Environment Config).
+builder.Services.AddCors(opt => opt.AddPolicy(SignalRCors, p =>
+    p.WithOrigins(builder.Configuration["Gateway:Url"] ?? "http://localhost:5000")
+     .AllowAnyHeader()
+     .AllowAnyMethod()
+     .AllowCredentials()));
+
+// Typed HttpClient for the inter-service call to the Poll API.
+// Base address comes from config (docker: http://poll-api:8080); localhost fallback for dev.
+builder.Services.AddHttpClient<PollClientService>(client =>
+{
+    var pollApi = builder.Configuration["Services:PollApi"] ?? "http://localhost:5001";
+    client.BaseAddress = new Uri(pollApi);
+});
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -22,7 +43,7 @@ var app = builder.Build();
 // Skipped for non-relational providers (the in-memory DB used by integration tests).
 await using (var scope = app.Services.CreateAsyncScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<PollDbContext>();
+    var db = scope.ServiceProvider.GetRequiredService<VoteDbContext>();
     if (db.Database.IsRelational())
     {
         for (var attempt = 1; ; attempt++)
@@ -40,12 +61,15 @@ await using (var scope = app.Services.CreateAsyncScope())
 // Unhandled-exception JSON handler (must be first in the pipeline)
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
+app.UseCors(SignalRCors);
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
 app.MapControllers();
+app.MapHub<PollHub>("/hubs/poll");
 
 app.Run();
 

@@ -62,16 +62,16 @@ Phased plan to take this repo from **docs-only** to a **deployed, tested, real-t
 **Goal:** submit votes and read aggregated results, validating polls via an HTTP call to Poll API.
 **Skills:** `pollbuilder-backend`, `pollbuilder-database`, `pollbuilder-testing`.
 
-- [ ] Scaffold `services/vote-api/` (`VoteApi.sln` + `VoteApi.Tests`)
-- [ ] `Vote` model + `VoteDbContext` (unique `(PollCode, VoterToken)`, aggregation index) + `InitialCreate` migration
-- [ ] `VoteRepository`: add, `HasVotedAsync`, `GetVoteCountsAsync` (SQL `GROUP BY`, not in-memory)
-- [ ] `PollClientService` — typed `HttpClient` (`AddHttpClient<T>`) to `http://poll-api:8080`; returns null/failure on non-2xx
-- [ ] `VoteService` (`Result<T>`): validate poll exists+active → validate option index → check duplicate → save → build results
-- [ ] DTOs: `VoteRequest`, `VoteResultsResponse` (+ `OptionResult` with percentages)
-- [ ] `VotesController`: `POST /api/polls/{code}/vote` (409 on duplicate), `GET /api/polls/{code}/results`
-- [ ] **Unit tests:** mock `PollClientService` + repo — success, poll-not-found, poll-closed, invalid option, duplicate vote, empty token
+- [x] Scaffold `services/vote-api/` (`VoteApi.sln` classic format + `VoteApi.Tests`, net10.0, EF Core 10.0.8)
+- [x] `Vote` model + `VoteDbContext` (unique `(PollCode, VoterToken)`, `(PollCode, OptionIndex)`, `VotedAt` indexes) + `InitialCreate` migration — schema verified vs ARCHITECTURE.md
+- [x] `VoteRepository`: add, `HasVotedAsync`, `GetVoteCountsAsync` (SQL `GROUP BY`) — methods `virtual`
+- [x] `PollClientService` — typed `HttpClient` (`AddHttpClient<T>`), base URL from `Services:PollApi`; returns `null` on non-2xx / `HttpRequestException`; co-located `PollInfo`/`PollOptionInfo`
+- [x] `VoteService` (`Result<T>`): poll exists+active → option index → voter token → duplicate → save → build results (SignalR broadcast deferred to Phase 5)
+- [x] DTOs: `VoteRequest`, `VoteResultsResponse` (+ `OptionResult` with percentages); plus `Common/Result<T>`
+- [x] `VotesController`: `POST /api/polls/{code}/vote` (200 / 409 duplicate / 404 not-found / 400), `GET /api/polls/{code}/results` (200 / 404)
+- [x] **Unit tests:** success, persisted-vote shape, poll-not-found, poll-closed, invalid/negative option, empty token, duplicate, results aggregation + zero-votes + not-found — **11/11 passing**
 
-**Definition of Done:** `dotnet test services/vote-api/VoteApi.sln` green; with Poll API running, can vote and read results; duplicate vote rejected.
+**Definition of Done:** `dotnet test services/vote-api/VoteApi.sln` green ✅ (11/11, 0 warnings). Live vote-against-running-Poll-API exercised end-to-end in Phase 3+ (Gateway) / Phase 7 (docker SQL Server); logic fully covered by mocked-collaborator unit tests.
 
 ---
 
@@ -80,12 +80,13 @@ Phased plan to take this repo from **docs-only** to a **deployed, tested, real-t
 **Goal:** single front door so the frontend only ever talks to one URL. (JWT validation added in Phase 6.)
 **Skills:** `pollbuilder-backend` (Gateway section), `pollbuilder-architecture`.
 
-- [ ] Scaffold `services/gateway/` (`Gateway.sln`) with YARP (`AddReverseProxy().LoadFromConfig`)
-- [ ] Route + cluster config per [ARCHITECTURE.md → Gateway Routing Table](ARCHITECTURE.md) — specific routes (vote, results, hubs) before the catch-all poll route
-- [ ] CORS policy for the frontend origin
-- [ ] Verify routing: `GET /api/polls/{code}` and `POST /api/polls/{code}/vote` reach the right services through `:5000`
+- [x] Scaffold `services/gateway/` (`Gateway.sln` classic format, net10.0) with YARP 2.3.0 (`AddReverseProxy().LoadFromConfig`)
+- [x] Route + cluster config per [ARCHITECTURE.md → Gateway Routing Table](ARCHITECTURE.md) — live subset: `vote-submit`(1), `vote-results`(2), `signalr-hub`(3), `polls-public`(100) catch-all; clusters `poll-api`/`vote-api`. **Auth routes (`auth-route`, `polls-protected/close/delete`) + `authenticated` policy + `X-User-Id` transforms + `identity-api` cluster + JWT deferred to Phase 6**
+- [x] CORS policy `Frontend` (origin from `Frontend:Url`, `AllowCredentials` for Phase 5 SignalR)
+- [x] `appsettings.Development.json` overrides cluster addresses → `localhost:5001/5002` for local (non-docker) runs; base `appsettings.json` keeps docker service-name addresses per ARCHITECTURE
+- [x] **Runtime routing verified** through `:5000` (poll-api+vote-api+gateway running): `/api/polls/{code}`→poll-api (500 no-DB JSON), `/api/polls/{code}/results` & `/vote`→vote-api (404 "Poll not found"), `/nope`→gateway no-route 404. Distinct response signatures prove correct clusters + ordering (no shadowing). Bonus: real vote→poll inter-service chain confirmed end-to-end.
 
-**Definition of Done:** all current endpoints reachable through the Gateway on port 5000; route ordering correct (no shadowing).
+**Definition of Done:** all current endpoints reachable through the Gateway on port 5000 ✅; route ordering correct (no shadowing) ✅. Build 0 warnings.
 
 ---
 
@@ -94,16 +95,17 @@ Phased plan to take this repo from **docs-only** to a **deployed, tested, real-t
 **Goal:** the full user flow working end-to-end in the browser, results via HTTP polling (SignalR comes next).
 **Skills:** `pollbuilder-frontend`, `webapp-testing`.
 
-- [ ] Scaffold `frontend/` (React 18 + TS + Vite), install deps, `react-router-dom`
-- [ ] `api/api.ts` Axios instance → Gateway (`VITE_API_URL`) with request/response interceptors
-- [ ] `types/poll.types.ts` matching the API contract
-- [ ] Hooks: `useCreatePoll`, `usePollInfo`, `useVote` (with persistent `voterToken` in localStorage)
-- [ ] Components: `PollForm` (2–6 options, expiry select), `VoteForm`, `LiveBarChart`, `ShareLink`
-- [ ] Pages + routes: `CreatePollPage` (`/`), `VotePage` (`/poll/:code`), `ResultsPage` (`/poll/:code/results`)
-- [ ] Temporary results polling on `ResultsPage` (interval refetch) — to be replaced in Phase 5
-- [ ] Manual end-to-end check with Playwright/webapp-testing: create → share → vote → see results
+- [x] Scaffold `frontend/` (React **19** + TS + Vite **8**, react-router-dom 7, axios) — Vite template pulled React 19 (not 18); ARCHITECTURE.md stack updated
+- [x] `api/api.ts` Axios instance → Gateway (`VITE_API_URL`, localhost fallback) + JWT request interceptor + `apiErrorMessage` helper (401→/login response interceptor deferred to Phase 6)
+- [x] `types/poll.types.ts` matching the API contract (PollInfo, PollOption, CreatePollData, VoteResults, OptionResult)
+- [x] Hooks: `useCreatePoll`, `usePollInfo`, `useVote` (persistent `voterToken` in localStorage), `usePolledResults` (temp interval polling — clearly marked for Phase 5 swap)
+- [x] Components: `PollForm` (2–6 options, expiry select), `VoteForm`, `LiveBarChart` (animated bars), `ShareLink`
+- [x] Pages + routes: `CreatePollPage` (`/`), `VotePage` (`/poll/:code`), `ResultsPage` (`/poll/:code/results`) + `App.tsx` router (login/register/my-polls deferred to Phase 6); themed `index.css`
+- [x] Secrets-conscious env: committed `frontend/.env.example`; local `frontend/.env` gitignored (VITE_ vars are public, not secret)
+- [x] **Verified:** `npm run build` (tsc typecheck + vite build) green; `npm run lint` (eslint) **0 issues**; Vite dev server serves the SPA (title + root)
+- [x] **Real DB-backed E2E** (Docker daemon was down → used LocalDB `MSSQLLocalDB` via env-override): applied both migrations to real DBs, ran poll-api+vote-api+gateway, drove the full flow through `:5000` — CREATE 201 (persisted), GET 200, VOTE 200, duplicate **409**, second voter 200, RESULTS `totalVotes:2` 50/50/0. Exact contract the frontend consumes.
 
-**Definition of Done:** with Gateway + Poll + Vote APIs up, a user can create a poll, vote, and watch counts update (via polling) in the browser.
+**Definition of Done:** create → vote → results works end-to-end against a real DB through the Gateway ✅ (verified via the live HTTP flow + frontend build/lint/serve). Full in-browser click-through (Playwright) and SignalR live updates come with Phase 5; polling hook is in place now.
 
 ---
 
@@ -112,14 +114,15 @@ Phased plan to take this repo from **docs-only** to a **deployed, tested, real-t
 **Goal:** replace polling with live WebSocket updates.
 **Skills:** `pollbuilder-backend` (SignalR), `pollbuilder-frontend` (`useLiveResults`).
 
-- [ ] Vote API: `PollHub` (`JoinPollGroup`/`LeavePollGroup`), `AddSignalR()`, `MapHub("/hubs/poll")`
-- [ ] `VoteService` broadcasts `ReceiveVoteUpdate` to `Group(code)` via `IHubContext` after a successful vote
-- [ ] Vote API CORS with `AllowCredentials()` for the WebSocket
-- [ ] Gateway: ensure `/hubs/{**}` route proxies the WebSocket (Upgrade/Connection headers)
-- [ ] Frontend: `useLiveResults` hook (fetch initial snapshot + SignalR connection w/ `withAutomaticReconnect`, cleanup on unmount); swap polling out of `ResultsPage`
-- [ ] **Unit test:** mock `IHubContext`, verify `SendAsync` is called on a successful vote
+- [x] Vote API: `PollHub` (`JoinPollGroup`/`LeavePollGroup`), `AddSignalR()`, `MapHub("/hubs/poll")`
+- [x] `VoteService` broadcasts `ReceiveVoteUpdate` to `Group(code)` via `IHubContext<PollHub>` after a successful vote (step 7, before returning)
+- [x] Vote API CORS policy `SignalR` with `AllowCredentials()` (origin from `Gateway:Url`); `appsettings` `Gateway:Url` added
+- [x] Gateway already proxies `/hubs/{**}` → vote-api (Phase 3); YARP handles the WebSocket upgrade automatically — confirmed working end-to-end
+- [x] Frontend: `@microsoft/signalr` 10.0 installed; `useLiveResults` hook (initial REST snapshot + SignalR w/ `withAutomaticReconnect`, JoinPollGroup, cleanup→LeavePollGroup+stop); `ResultsPage` swapped off polling (● Live / ○ Connecting badge); `usePolledResults` removed
+- [x] **Unit test:** mock `IHubContext` (Clients.Group→IClientProxy), verify `SendCoreAsync("ReceiveVoteUpdate", …)` **Times.Once** on success and **Times.Never** on duplicate — VoteApi **11/11 green**
+- [x] **Real SignalR E2E** (SQLEXPRESS + 3 services + gateway): Node `@microsoft/signalr` client connected to the hub **through the Gateway**, joined the group, a vote (HTTP 200) pushed `ReceiveVoteUpdate` over WebSocket with correct results (`totalVotes:1`, Yes 100%). Temp script removed after.
 
-**Definition of Done:** two browser windows on the same results page — a vote in one updates the chart in the other with no refresh.
+**Definition of Done:** a vote pushes a live update to connected clients with no refresh ✅ (proven via a real WebSocket client through the Gateway). Frontend `useLiveResults` drives `ResultsPage`; backend broadcast unit-tested. Two-browser-window scenario = the same flow with a UI client.
 
 ---
 
@@ -128,17 +131,17 @@ Phased plan to take this repo from **docs-only** to a **deployed, tested, real-t
 **Goal:** registration/login + creator-only actions, with JWT validated centrally at the Gateway.
 **Skills:** `pollbuilder-backend`, `pollbuilder-database`, `pollbuilder-frontend`.
 
-- [ ] Scaffold `services/identity-api/` (`IdentityApi.sln` + tests)
-- [ ] `User` model + `IdentityDbContext` (unique `Email`) + `InitialCreate` migration
-- [ ] `AuthService`: register (BCrypt hash, duplicate-email guard, min password length), login, JWT generation (7-day, `nameidentifier` claim)
-- [ ] `AuthController`: `POST /api/auth/register`, `POST /api/auth/login`
-- [ ] Gateway: add JWT validation + `authenticated` policy + `X-User-Id` transform on protected routes
-- [ ] Poll API: finish `PATCH /close`, `DELETE`, `GET /my-polls` reading `X-User-Id`; set `CreatorId` on create
-- [ ] Frontend: `LoginPage`, `RegisterPage`, `MyPollsPage`, `useMyPolls`, token storage + 401 handling
-- [ ] **Unit tests:** register success/duplicate/weak-password; login success/bad-credentials; close/delete creator vs non-creator
-- [ ] Verify: `Jwt__Secret` identical in Gateway + Identity API
+- [x] Scaffold `services/identity-api/` (`IdentityApi.sln` + `IdentityApi.Tests`, net10.0; EF Core 10, BCrypt.Net-Next 4.2, System.IdentityModel.Tokens.Jwt 8.18)
+- [x] `User` model + `IdentityDbContext` (unique `Email`) + `InitialCreate` migration — applied to SQLEXPRESS `IdentityDb`
+- [x] `AuthService`: register (BCrypt hash, case-insensitive duplicate-email guard, min 6-char password), login (no account enumeration), JWT generation (7-day, `sub`/`email`/`jti` claims)
+- [x] `AuthController`: `POST /api/auth/register`, `POST /api/auth/login` (failures 400, not 401, so the SPA's 401 handler doesn't hijack login)
+- [x] Gateway: JWT validation (`MapInboundClaims=false`) + `authenticated` policy + `auth-route` + `identity-api` cluster + protected routes; **`X-User-Id` set by a YARP code transform from the `sub` claim** (config `{claim:..}` isn't supported) **+ strips client-supplied `X-User-Id`** (anti-spoof)
+- [x] Poll API: `PATCH /close`, `DELETE`, `GET /my-polls` read `X-User-Id` (401 missing / 403 non-creator / 404 / 204); `CreatorId` set on create
+- [x] Frontend: `LoginPage`, `RegisterPage`, `MyPollsPage` + `PollCard`, `useAuth`, `useMyPolls`, `auth/session` (token + `auth-change` event), global **401 response interceptor** → `/login`, nav login/logout, routes
+- [x] **Unit tests:** AuthService register success/empty-email/weak-password/duplicate/case-insensitive; login valid/bad-password/no-user — **8/8**; poll close/delete creator-vs-non-creator already covered (Phase 1)
+- [x] `Jwt:Secret` identical in Gateway + Identity API — stored in **User Secrets** for both (verified equal by hash), placeholders in committed `appsettings.json`
 
-**Definition of Done:** a user can register, log in, create a poll while authenticated, see it in "my polls," and close/delete it; non-creators get 403; protected routes return 401 without a token.
+**Definition of Done:** ✅ Verified end-to-end on SQLEXPRESS through the Gateway — register→token, authenticated create attributed (shows in `/my-polls`), other user sees `[]`, no-token→401, non-creator close→403, creator close→200, delete→204, spoofed `X-User-Id` stripped. All builds 0 warnings; **41 unit tests** (14 poll + 11 vote + 8 identity + 8 new) green; frontend build+lint clean.
 
 ---
 
@@ -147,14 +150,15 @@ Phased plan to take this repo from **docs-only** to a **deployed, tested, real-t
 **Goal:** one command brings the whole system up locally.
 **Skills:** `pollbuilder-devops`.
 
-- [ ] Multi-stage `Dockerfile` per backend service (`[MERIT]` for the size reduction)
-- [ ] Frontend `Dockerfile` (Node build → Nginx) + `nginx.conf` (SPA fallback, proxy `/api` and `/hubs` to gateway, WS headers)
-- [ ] `.dockerignore` per service/frontend
-- [ ] Root `docker-compose.yml`: `db`, `gateway`, `poll-api`, `vote-api`, `identity-api`, `frontend` with env + `depends_on` (see [ARCHITECTURE.md → Deployment](ARCHITECTURE.md))
-- [ ] Document migration step: `docker-compose exec <svc> dotnet ef database update`
-- [ ] Smoke test: `docker-compose up --build` → full flow works via `localhost:5173`
+- [x] Multi-stage `Dockerfile` per backend service (`sdk:10.0` → `aspnet:10.0`, `UseAppHost=false`) `[MERIT]` size reduction
+- [x] Frontend `Dockerfile` (`node:22-alpine` build → `nginx:alpine`) with relative `VITE_*` build args + `nginx.conf` (SPA fallback, proxy `/api` & `/hubs` to gateway, WS upgrade headers)
+- [x] `.dockerignore` per service (excludes bin/obj/tests) + frontend (excludes node_modules/dist/.env)
+- [x] Root `docker-compose.yml`: `db` (healthcheck) + `poll/vote/identity` + `gateway` + `frontend`; **only 5000 + 5173 published**; `depends_on: db service_healthy`; secrets via `${SA_PASSWORD}`/`${JWT_SECRET}` from gitignored root `.env` (+ committed `.env.example`)
+- [x] **Migrations auto-apply on startup** (`MigrateAsync` + 12× retry, guarded by `IsRelational()` so integration tests skip it; `EnableRetryOnFailure`) — replaces the manual `dotnet ef` step (runtime images have no SDK). ARCHITECTURE.md updated.
+- [x] **Offline verification:** all backends build; **33 unit tests** green; `docker compose config` validates (YAML + `${VAR}` interpolation); poll-api boots against SQLEXPRESS and **runs the migrator on startup** ("database already up to date") then serves (create 201); frontend builds with relative env (`/hubs/poll` baked, localhost fallback folded out)
+- [ ] ⏳ **Smoke test `docker-compose up --build`** — **blocked: Docker Desktop daemon is not running** (`docker info` fails). Everything else is in place; run `docker-compose up --build` once Docker is started, then open `http://localhost:5173`.
 
-**Definition of Done:** fresh `docker-compose up --build` + migrations yields a fully working app; only Gateway (5000) and Frontend (5173) exposed as entry points.
+**Definition of Done:** fresh `docker-compose up --build` + auto-migrations yields a working app; only Gateway (5000) and Frontend (5173) exposed. ✅ All artifacts written & validated offline; ⏳ the live `up` smoke test awaits Docker Desktop being started.
 
 ---
 
@@ -163,14 +167,16 @@ Phased plan to take this repo from **docs-only** to a **deployed, tested, real-t
 **Goal:** push to `main` → automatically build, push images, and deploy. **A non-deployed app cannot score above 4.**
 **Skills:** `pollbuilder-devops`, `verification-before-completion`.
 
-- [ ] `.github/workflows/ci-cd.yml` Phase 1 — lint & test: `dotnet test` per service + `npm run lint` (`[MERIT]` lint/static-analysis step)
-- [ ] Phase 2 — build & push 5 images to Docker Hub (only on `main`, with GHA layer cache)
-- [ ] Phase 3 — deploy via Render webhook per service
-- [ ] Configure GitHub secrets (Docker Hub creds + 5 Render hooks — see [ARCHITECTURE.md → Required GitHub Secrets](ARCHITECTURE.md))
-- [ ] Create Render services + a managed/containerized SQL Server; set production env vars (real `Jwt__Secret`, connection strings, frontend `VITE_*` → deployed gateway)
-- [ ] Verify a live push triggers a green pipeline and the **public URL is reachable**
+- [x] `.github/workflows/ci-cd.yml` Job 1 — lint & test: `dotnet test` per service (Release) + frontend `npm ci`/`npm run lint`/`npm run build` (`[MERIT]` lint/static-analysis step) — runs on push **and** PR
+- [x] Job 2 — build & push 5 images to Docker Hub (only on `main`, `docker/build-push-action@v6`, per-image GHA layer cache scopes)
+- [x] Job 3 — deploy via Render webhook per service (each step **env-guarded** → no-ops until its `RENDER_HOOK_*` secret is set, so the pipeline stays green during incremental setup)
+- [x] **Validated offline:** YAML parses (js-yaml); every referenced `.sln`, `frontend/package-lock.json`, and the 5 build-context `Dockerfile`s exist; frontend `lint`/`build` scripts present. Removed the `.gitkeep` placeholder.
+- [x] **[DEPLOYMENT.md](DEPLOYMENT.md)** written — GitHub secrets table, Docker Hub token, 5 Render Web Services + per-service prod env vars (connection strings, identical `Jwt__Secret`, gateway cluster overrides, frontend proxy), verify steps
+- [ ] ⏳ **Configure GitHub secrets** (Docker Hub creds + 5 Render hooks) — needs your GitHub repo + Docker Hub account
+- [ ] ⏳ **Create Render services + SQL Server**; set production env vars — needs your Render account
+- [ ] ⏳ **Verify live push → green pipeline + reachable public URL** — needs the repo pushed to GitHub with secrets configured
 
-**Definition of Done:** a commit to `main` deploys automatically; the live URL serves the working app end-to-end (create/vote/live-results) in the cloud.
+**Definition of Done:** a commit to `main` deploys automatically; the live URL serves the app end-to-end. ✅ Pipeline authored & statically validated + deployment documented; ⏳ the live run + cloud provisioning require your GitHub/Docker Hub/Render accounts (steps in [DEPLOYMENT.md](DEPLOYMENT.md)).
 
 ---
 

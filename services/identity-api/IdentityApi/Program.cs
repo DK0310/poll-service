@@ -1,17 +1,15 @@
+using IdentityApi.Data;
+using IdentityApi.Middleware;
+using IdentityApi.Services;
 using Microsoft.EntityFrameworkCore;
-using PollApi.Data;
-using PollApi.Middleware;
-using PollApi.Repositories;
-using PollApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<PollDbContext>(opt =>
+builder.Services.AddDbContext<IdentityDbContext>(opt =>
     opt.UseSqlServer(builder.Configuration.GetConnectionString("Default"),
         sql => sql.EnableRetryOnFailure()));
 
-builder.Services.AddScoped<PollRepository>();
-builder.Services.AddScoped<PollService>();
+builder.Services.AddScoped<AuthService>();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -22,7 +20,7 @@ var app = builder.Build();
 // Skipped for non-relational providers (the in-memory DB used by integration tests).
 await using (var scope = app.Services.CreateAsyncScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<PollDbContext>();
+    var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
     if (db.Database.IsRelational())
     {
         for (var attempt = 1; ; attempt++)
