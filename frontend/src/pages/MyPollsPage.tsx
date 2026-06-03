@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { LogIn, Plus } from 'lucide-react';
 import api, { apiErrorMessage } from '../api/api';
 import { PollCard } from '../components/PollCard';
 import { useMyPolls } from '../hooks/useMyPolls';
@@ -13,8 +14,13 @@ export function MyPollsPage() {
   if (!isAuthenticated()) {
     return (
       <div className="page">
-        <h1>My Polls</h1>
-        <p>Please <Link to="/login">log in</Link> to see the polls you've created.</p>
+        <div className="card empty-state">
+          <h1>My polls</h1>
+          <p className="muted">Log in to see the polls you’ve created.</p>
+          <Link to="/login" className="btn">
+            <LogIn size={18} strokeWidth={2.25} aria-hidden="true" /> Log in
+          </Link>
+        </div>
       </div>
     );
   }
@@ -47,16 +53,36 @@ export function MyPollsPage() {
 
   return (
     <div className="page">
-      <h1>My Polls</h1>
-      {loading && <p>Loading…</p>}
-      {error && <p className="error">{error}</p>}
-      {actionError && <p className="error">{actionError}</p>}
-      {!loading && polls.length === 0 && (
-        <p>You haven't created any polls yet. <Link to="/">Create one →</Link></p>
+      <h1>My polls</h1>
+
+      {error && <p className="error" role="alert">{error}</p>}
+      {actionError && <p className="error" role="alert">{actionError}</p>}
+
+      {loading ? (
+        <div className="poll-list">
+          <div className="skeleton skeleton--card" />
+          <div className="skeleton skeleton--card" />
+        </div>
+      ) : polls.length === 0 ? (
+        <div className="card empty-state">
+          <p className="muted">You haven’t created any polls yet.</p>
+          <Link to="/" className="btn">
+            <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Create your first poll
+          </Link>
+        </div>
+      ) : (
+        <div className="poll-list">
+          {polls.map((poll) => (
+            <PollCard
+              key={poll.code}
+              poll={poll}
+              onClose={closePoll}
+              onDelete={deletePoll}
+              busy={busy}
+            />
+          ))}
+        </div>
       )}
-      {polls.map((poll) => (
-        <PollCard key={poll.code} poll={poll} onClose={closePoll} onDelete={deletePoll} busy={busy} />
-      ))}
     </div>
   );
 }

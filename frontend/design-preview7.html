@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BENTO / DATA-DENSE — Design Preview 7 (ui-ux-pro-max)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#1E40AF; --secondary:#3B82F6; --accent:#D97706; --bg:#F8FAFC;
+    --fg:#1E3A8A; --ink:#0f172a; --muted:#E9EEF6; --muted-fg:#64748B; --border:#DBEAFE; --danger:#DC2626;
+    --card:#FFFFFF; --display:"Fira Code",monospace; --body:"Fira Sans",sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--body);background:var(--bg);color:var(--ink);font-size:15px;line-height:1.5;}
+  .wrap{max-width:880px;margin:0 auto;padding:0 18px 90px;}
+  .note{margin:22px 0 0;background:var(--card);border:1px solid var(--border);border-left:4px solid var(--accent);border-radius:8px;padding:11px 15px;font-size:12px;color:var(--muted-fg);font-family:var(--display);}
+  .label{margin:46px 0 12px;font-family:var(--display);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted-fg);}
+  /* header */
+  header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-top:6px;}
+  .wm{font-family:var(--display);font-weight:700;font-size:18px;color:var(--primary);display:flex;align-items:center;gap:9px;}
+  .sq{width:28px;height:28px;border-radius:7px;background:var(--primary);color:#fff;display:grid;place-items:center;font-size:14px;}
+  nav{display:flex;gap:4px;flex-wrap:wrap;}
+  nav a{font-family:var(--display);font-size:12px;color:var(--muted-fg);text-decoration:none;padding:7px 11px;border-radius:7px;}
+  nav a.on{background:var(--primary);color:#fff;}nav a:hover{background:var(--muted);}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;}
+  .card.c2{grid-column:span 2;}.card.c3{grid-column:span 3;}.card.c4{grid-column:span 4;}
+  .kpi .nn{font-family:var(--display);font-weight:700;font-size:30px;color:var(--primary);line-height:1;}
+  .kpi.amber .nn{color:var(--accent);}
+  .kpi .ll{font-size:11px;color:var(--muted-fg);text-transform:uppercase;letter-spacing:.04em;margin-top:8px;}
+  h1{font-family:var(--display);font-weight:700;font-size:22px;color:var(--primary);margin:0 0 14px;letter-spacing:-.01em;}
+  .lab{display:block;font-family:var(--display);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted-fg);margin:14px 0 6px;}
+  input.in{width:100%;border:1px solid var(--border);border-radius:8px;padding:11px 13px;font-family:var(--body);font-size:15px;background:#fff;outline:none;}
+  input.in:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(30,64,175,.12);}
+  .seg{display:flex;flex-wrap:wrap;gap:6px;}
+  .seg button{font-family:var(--display);font-size:12px;border:1px solid var(--border);background:#fff;border-radius:7px;padding:8px 12px;cursor:pointer;color:var(--ink);}
+  .seg button.on{background:var(--primary);color:#fff;border-color:var(--primary);}
+  .optrow{display:flex;align-items:center;gap:9px;margin:8px 0;}
+  .optrow .n{font-family:var(--display);width:26px;height:26px;border-radius:7px;background:var(--muted);display:grid;place-items:center;font-size:12px;color:var(--primary);}
+  .optrow input{flex:1;border:1px solid var(--border);border-radius:7px;padding:9px 11px;font-family:var(--body);}
+  .optrow .x{border:1px solid var(--border);background:#fff;color:var(--danger);width:32px;height:32px;border-radius:7px;cursor:pointer;}
+  .add{font-family:var(--display);font-size:12px;border:1px dashed var(--secondary);background:transparent;color:var(--primary);border-radius:7px;padding:9px 13px;cursor:pointer;margin-top:6px;}
+  .btn{font-family:var(--display);font-weight:600;border:0;border-radius:8px;background:var(--primary);color:#fff;font-size:14px;padding:12px 20px;cursor:pointer;margin-top:18px;}
+  .btn:hover{background:#1b3aa0;}.btn.block{display:block;width:100%;}
+  .btn.amber{background:var(--accent);}
+  /* vote */
+  .vopt{display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:9px;padding:12px 14px;margin:9px 0;cursor:pointer;background:#fff;}
+  .vopt .n{font-family:var(--display);font-size:12px;color:var(--muted-fg);}
+  .vopt .t{flex:1;font-weight:500;}
+  .check{width:24px;height:24px;border-radius:6px;border:1px solid var(--border);display:grid;place-items:center;color:#fff;font-size:13px;}
+  .vopt.on{border-color:var(--primary);background:#eef3fe;}.vopt.on .check{background:var(--primary);}
+  .caststamp{display:inline-block;margin-top:16px;font-family:var(--display);font-size:13px;background:#ecfdf5;border:1px solid #a7f3d0;color:#047857;border-radius:8px;padding:8px 14px;}
+  /* results */
+  .live{font-family:var(--display);font-size:12px;color:var(--accent);font-weight:600;}
+  .live .d{animation:b 1s steps(2) infinite;}@keyframes b{50%{opacity:0;}}
+  .rrow{margin:13px 0;}
+  .rtop{display:flex;justify-content:space-between;font-weight:600;font-size:14px;}
+  .rfig{font-family:var(--display);color:var(--muted-fg);font-weight:500;}
+  .track{height:12px;background:var(--muted);border-radius:6px;margin-top:6px;overflow:hidden;}
+  .fill{height:100%;border-radius:6px;background:var(--primary);}
+  .fill.lead{background:var(--accent);}
+  .foot{font-family:var(--display);font-size:12px;color:var(--muted-fg);margin-top:14px;}
+  svg text{font-family:"Fira Code",monospace;}
+  .ledger{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid var(--border);padding:13px 0;}
+  .ledger .q{font-weight:600;}.ledger .m{font-family:var(--display);font-size:11px;color:var(--muted-fg);}
+  .pill{font-family:var(--display);font-size:11px;border-radius:6px;padding:4px 9px;}
+  .pill.open{background:#ecfdf5;color:#047857;}.pill.closed{background:var(--muted);color:var(--muted-fg);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note">// Preview 7 / 10 — BENTO GRID / DATA-DENSE (ui-ux-pro-max) :: modular cards, blue data + amber highlights, Fira Code + Fira Sans. Analytics-product feel.</div>
+
+  <div class="label">App shell</div>
+  <header>
+    <div class="wm"><span class="sq">▦</span> poll.builder</div>
+    <nav><a class="on" href="#">create</a><a href="#">my_polls</a><a href="#">login</a><a href="#">register</a></nav>
+  </header>
+
+  <div class="label">Create a poll</div>
+  <div class="grid"><div class="card c4">
+    <h1>create_poll()</h1>
+    <span class="lab">question</span>
+    <input class="in" value="Which JS framework wins in 2026?">
+    <span class="lab">type</span>
+    <div class="seg"><button class="on">multiple</button><button>yes/no</button><button>rating</button><button>open_text</button></div>
+    <span class="lab">options</span>
+    <div class="optrow"><span class="n">01</span><input value="React"><button class="x">✕</button></div>
+    <div class="optrow"><span class="n">02</span><input value="Svelte"><button class="x">✕</button></div>
+    <div class="optrow"><span class="n">03</span><input value="Vue"><button class="x">✕</button></div>
+    <button class="add">+ add_option</button>
+    <button class="btn block">deploy_poll()</button>
+  </div></div>
+
+  <div class="label">Vote</div>
+  <div class="grid"><div class="card c4">
+    <h1>ballot[7fGh2]</h1>
+    <div class="vopt"><span class="n">01</span><span class="t">React</span><span class="check"></span></div>
+    <div class="vopt on"><span class="n">02</span><span class="t">Svelte</span><span class="check">✓</span></div>
+    <div class="vopt"><span class="n">03</span><span class="t">Vue</span><span class="check"></span></div>
+    <button class="btn">submit_vote()</button>
+    <div><span class="caststamp">✓ vote_recorded</span></div>
+  </div></div>
+
+  <div class="label">Live results + analytics (bento)</div>
+  <div class="grid">
+    <div class="card c4"><h1 style="margin:0">results[7fGh2]</h1><div class="live" style="margin-top:8px"><span class="d">●</span> LIVE · 0.3s</div></div>
+    <div class="card kpi"><div class="nn">200</div><div class="ll">total</div></div>
+    <div class="card kpi amber"><div class="nn">14:32</div><div class="ll">peak min</div></div>
+    <div class="card kpi c2"><div class="nn" style="font-size:24px">React</div><div class="ll">top option</div></div>
+    <div class="card c2">
+      <div class="rrow"><div class="rtop"><span>React</span><span class="rfig">128·64%</span></div><div class="track"><div class="fill lead" style="width:64%"></div></div></div>
+      <div class="rrow"><div class="rtop"><span>Svelte</span><span class="rfig">62·31%</span></div><div class="track"><div class="fill" style="width:31%"></div></div></div>
+      <div class="rrow"><div class="rtop"><span>Vue</span><span class="rfig">10·5%</span></div><div class="track"><div class="fill" style="width:5%"></div></div></div>
+    </div>
+    <div class="card c2">
+      <span class="lab">votes_over_time</span>
+      <svg viewBox="0 0 320 120" style="width:100%;height:auto">
+        <line x1="0" y1="90" x2="320" y2="90" stroke="#DBEAFE"/><line x1="0" y1="55" x2="320" y2="55" stroke="#EEF3FE"/>
+        <polyline fill="rgba(30,64,175,.08)" stroke="none" points="0,90 40,80 80,70 120,50 160,58 200,36 240,28 280,40 320,18 320,90 0,90"/>
+        <polyline fill="none" stroke="#1E40AF" stroke-width="2" points="0,90 40,80 80,70 120,50 160,58 200,36 240,28 280,40 320,18"/>
+        <text x="2" y="112" font-size="9" fill="#64748B">14:20</text><text x="280" y="112" font-size="9" fill="#64748B">14:40</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="label">My polls</div>
+  <div class="grid"><div class="card c4">
+    <div class="ledger"><div><div class="q">Which JS framework wins?</div><div class="m">7fGh2 · 200 votes</div></div><span class="pill open">open</span></div>
+    <div class="ledger" style="border:0"><div><div class="q">Best pizza topping?</div><div class="m">k9Lm2 · 1,204 votes</div></div><span class="pill closed">closed</span></div>
+  </div></div>
+</div>
+</body>
+</html>

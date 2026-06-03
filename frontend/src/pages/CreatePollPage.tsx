@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Check, ArrowRight, BarChart3 } from 'lucide-react';
 import { PollForm } from '../components/PollForm';
 import { ShareLink } from '../components/ShareLink';
 import { useCreatePoll } from '../hooks/useCreatePoll';
@@ -19,25 +20,41 @@ export function CreatePollPage() {
     if (poll) setResult(poll);
   };
 
-  return (
-    <div className="page">
-      <h1>Create a Poll</h1>
-      {!result ? (
-        <>
-          <PollForm onSubmit={handleSubmit} disabled={loading} />
-          {error && <p className="error">{error}</p>}
-        </>
-      ) : (
-        <div className="success">
-          <h2>Poll Created!</h2>
+  if (result) {
+    return (
+      <div className="page">
+        <div className="card create-success">
+          <span className="success-badge" aria-hidden="true">
+            <Check size={26} strokeWidth={2.5} />
+          </span>
+          <h1 className="h-gradient">Poll created</h1>
           <p className="created-question">{result.question}</p>
           <ShareLink code={result.code} />
           <div className="created-links">
-            <Link to={`/poll/${result.code}`}>Open voting page →</Link>
-            <Link to={`/poll/${result.code}/results`}>View live results →</Link>
+            <Link to={`/poll/${result.code}`} className="btn">
+              Open voting page <ArrowRight size={18} strokeWidth={2.25} aria-hidden="true" />
+            </Link>
+            <Link to={`/poll/${result.code}/results`} className="btn-outline">
+              <BarChart3 size={18} strokeWidth={2.25} aria-hidden="true" /> View live results
+            </Link>
           </div>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="page">
+      <div className="card">
+        <h1>Create a poll</h1>
+        <p className="muted page-intro">Ask anything — share a link and watch results update live.</p>
+        <PollForm onSubmit={handleSubmit} disabled={loading} />
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

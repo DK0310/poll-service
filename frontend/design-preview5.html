@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ART-DECO LUXURY — Design Preview 5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c130f; --panel:#0f1813; --ink:#f3ecd9; --emerald:#0f3d2e;
+    --gold:#c8a45c; --gold-bright:#e7c989; --muted:#9a9277; --line:#2a3a31; --red:#b8434a;
+    --display:"Cinzel",serif; --body:"Cormorant Garamond",serif; --sans:"Jost",sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:19px;line-height:1.55;
+    background-image:radial-gradient(circle at 50% 0,rgba(200,164,92,.06),transparent 60%);}
+  .wrap{max-width:700px;margin:0 auto;padding:0 22px 100px;}
+  .note{margin:24px 0 0;border:1px solid var(--gold);padding:11px 16px;font-family:var(--sans);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-bright);}
+  .label{margin:54px 0 14px;font-family:var(--sans);font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);text-align:center;}
+  .label::before,.label::after{content:"— ";color:var(--gold);}
+  .label::after{content:" —";}
+  /* deco frame */
+  .frame{border:1px solid var(--gold);position:relative;background:var(--panel);margin-top:18px;padding:34px 32px 38px;}
+  .frame::before{content:"";position:absolute;inset:5px;border:1px solid var(--line);pointer-events:none;}
+  .corner{position:absolute;width:16px;height:16px;border:1px solid var(--gold);}
+  .corner.tl{top:-1px;left:-1px;border-right:0;border-bottom:0;}
+  .corner.tr{top:-1px;right:-1px;border-left:0;border-bottom:0;}
+  .corner.bl{bottom:-1px;left:-1px;border-right:0;border-top:0;}
+  .corner.br{bottom:-1px;right:-1px;border-left:0;border-top:0;}
+  /* header */
+  .masthead{text-align:center;border-top:1px solid var(--gold);border-bottom:1px solid var(--gold);padding:22px 0 18px;margin-top:8px;position:relative;}
+  .sunburst{color:var(--gold);letter-spacing:.5em;font-size:13px;}
+  .wm{font-family:var(--display);font-weight:800;font-size:clamp(26px,6.5vw,48px);letter-spacing:.08em;margin:8px 0 6px;
+    background:linear-gradient(180deg,var(--gold-bright),var(--gold));-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .tag{font-family:var(--sans);font-size:10px;letter-spacing:.4em;text-transform:uppercase;color:var(--muted);}
+  nav{display:flex;gap:30px;justify-content:center;margin-top:18px;}
+  nav a{font-family:var(--sans);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink);text-decoration:none;}
+  nav a.on,nav a:hover{color:var(--gold-bright);}
+  /* content */
+  .kicker{font-family:var(--sans);font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);text-align:center;margin:0 0 10px;}
+  h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,5vw,38px);letter-spacing:.02em;text-align:center;line-height:1.12;margin:0 auto 8px;max-width:90%;}
+  .sub{text-align:center;font-style:italic;color:var(--muted);margin:0 0 24px;}
+  .divider{text-align:center;color:var(--gold);letter-spacing:.4em;margin:22px 0;font-size:12px;}
+  .lab{display:block;font-family:var(--sans);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px;}
+  input.in{width:100%;border:0;border-bottom:1px solid var(--gold);background:transparent;font-family:var(--display);font-weight:600;font-size:22px;color:var(--gold-bright);letter-spacing:.02em;padding:8px 2px;outline:none;text-align:center;}
+  .seg{display:flex;flex-wrap:wrap;gap:0;justify-content:center;border:1px solid var(--line);}
+  .seg button{flex:1;min-width:90px;border:0;border-right:1px solid var(--line);background:transparent;font-family:var(--sans);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);padding:11px 8px;cursor:pointer;}
+  .seg button:last-child{border-right:0;}
+  .seg button.on{background:var(--emerald);color:var(--gold-bright);}
+  .optrow{display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--line);padding:4px 0;}
+  .optrow .n{font-family:var(--display);font-size:15px;color:var(--gold);width:30px;text-align:center;}
+  .optrow input{flex:1;border:0;background:transparent;font-family:var(--body);font-size:19px;color:var(--ink);padding:10px 2px;outline:none;}
+  .optrow .x{border:0;background:transparent;color:var(--red);cursor:pointer;}
+  .add{display:block;margin:14px auto 0;border:1px solid var(--gold);background:transparent;color:var(--gold-bright);font-family:var(--sans);font-size:10px;letter-spacing:.16em;text-transform:uppercase;padding:9px 18px;cursor:pointer;}
+  .btn{display:block;width:100%;margin-top:26px;border:1px solid var(--gold);background:linear-gradient(180deg,var(--gold-bright),var(--gold));color:#1a140a;font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.16em;text-transform:uppercase;padding:15px;cursor:pointer;}
+  .btn:hover{background:var(--gold-bright);}
+  .btn.inline{display:inline-block;width:auto;padding:13px 28px;}
+  /* vote */
+  .vopt{display:flex;align-items:center;gap:16px;border:1px solid var(--line);padding:15px 18px;margin:11px 0;cursor:pointer;}
+  .vopt .n{font-family:var(--display);color:var(--gold);font-size:15px;}
+  .vopt .t{flex:1;font-family:var(--display);font-size:20px;letter-spacing:.02em;}
+  .vopt .mk{width:24px;height:24px;border:1px solid var(--gold);border-radius:50%;display:grid;place-items:center;color:var(--gold-bright);font-size:13px;}
+  .vopt.on{border-color:var(--gold);background:rgba(200,164,92,.07);}
+  .vopt.on .mk{background:var(--emerald);}
+  .caststamp{display:inline-block;margin-top:22px;border:1px solid var(--gold);color:var(--gold-bright);font-family:var(--display);letter-spacing:.2em;text-transform:uppercase;font-size:14px;padding:9px 20px;border-radius:2px;}
+  /* results */
+  .live{text-align:center;font-family:var(--sans);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);}
+  .live .d{color:var(--red);animation:b 1.2s steps(2) infinite;}@keyframes b{50%{opacity:0;}}
+  .rrow{margin:16px 0;}
+  .rtop{display:flex;justify-content:space-between;align-items:baseline;}
+  .rname{font-family:var(--display);font-size:18px;letter-spacing:.04em;}
+  .rname.lead{color:var(--gold-bright);}
+  .rfig{font-family:var(--sans);font-size:13px;color:var(--muted);}
+  .track{height:10px;border:1px solid var(--line);margin-top:7px;}
+  .fill{height:100%;background:var(--emerald);}
+  .fill.lead{background:linear-gradient(90deg,var(--gold),var(--gold-bright));}
+  .foot{text-align:center;font-family:var(--sans);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:20px;}
+  .stats{display:flex;justify-content:center;gap:0;border:1px solid var(--line);margin-top:14px;}
+  .stat{flex:1;padding:18px 12px;text-align:center;border-right:1px solid var(--line);}
+  .stat:last-child{border-right:0;}
+  .stat .nn{font-family:var(--display);font-weight:700;font-size:30px;color:var(--gold-bright);line-height:1;}
+  .stat .ll{font-family:var(--sans);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-top:8px;}
+  .ledger{display:flex;justify-content:space-between;align-items:center;gap:14px;border-bottom:1px solid var(--line);padding:16px 0;}
+  .ledger .q{font-family:var(--display);font-size:19px;}
+  .ledger .m{font-family:var(--sans);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:4px;}
+  .pill{font-family:var(--sans);font-size:9px;letter-spacing:.16em;text-transform:uppercase;border:1px solid;padding:5px 11px;}
+  .pill.open{color:var(--gold-bright);border-color:var(--gold);}.pill.closed{color:var(--muted);border-color:var(--line);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note">Preview 5 / 5 — Art-Deco Luxury :: gold on deep emerald/black, Cinzel + Cormorant Garamond, ornamental rules & symmetry. Elegant & premium.</div>
+
+  <div class="label">App shell</div>
+  <div class="masthead">
+    <div class="sunburst">✦ ◈ ✦</div>
+    <div class="wm">THE BALLOT CLUB</div>
+    <div class="tag">Poll &amp; Survey · Est. MMXXVI</div>
+    <nav><a class="on" href="#">Create</a><a href="#">My Polls</a><a href="#">Log in</a><a href="#">Register</a></nav>
+  </div>
+
+  <div class="label">Create a poll</div>
+  <div class="frame"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+    <p class="kicker">Compose a Motion</p>
+    <h1>Pose Your Question</h1>
+    <p class="sub">Submit it to the membership.</p>
+    <span class="lab" style="text-align:center;">The Question</span>
+    <input class="in" value="Which JS framework wins in 2026?">
+    <div class="divider">✦</div>
+    <span class="lab">Ballot Type</span>
+    <div class="seg"><button class="on">Choice</button><button>Yes / No</button><button>Rating</button><button>Open</button></div>
+    <span class="lab">Answer Options</span>
+    <div class="optrow"><span class="n">I</span><input value="React"><button class="x">✕</button></div>
+    <div class="optrow"><span class="n">II</span><input value="Svelte"><button class="x">✕</button></div>
+    <div class="optrow"><span class="n">III</span><input value="Vue"><button class="x">✕</button></div>
+    <button class="add">+ Add Option</button>
+    <button class="btn">Put It To The Vote</button>
+  </div>
+
+  <div class="label">Vote</div>
+  <div class="frame"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+    <p class="kicker">Official Ballot · 7fGh2</p>
+    <h1>Which JS Framework Wins?</h1>
+    <p class="sub">Mark one. One vote per member.</p>
+    <div class="vopt"><span class="n">I</span><span class="t">React</span><span class="mk"></span></div>
+    <div class="vopt on"><span class="n">II</span><span class="t">Svelte</span><span class="mk">✓</span></div>
+    <div class="vopt"><span class="n">III</span><span class="t">Vue</span><span class="mk"></span></div>
+    <div style="text-align:center"><button class="btn inline">Cast Your Vote</button></div>
+    <div style="text-align:center"><span class="caststamp">✦ Vote Cast ✦</span></div>
+  </div>
+
+  <div class="label">Live results</div>
+  <div class="frame"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+    <p class="kicker">The Returns · 7fGh2</p>
+    <h1>Which Framework Wins?</h1>
+    <div class="live"><span class="d">●</span> Live — Updated 0.3s Ago</div>
+    <div style="margin-top:16px">
+      <div class="rrow"><div class="rtop"><span class="rname lead">React</span><span class="rfig">128 · 64%</span></div><div class="track"><div class="fill lead" style="width:64%"></div></div></div>
+      <div class="rrow"><div class="rtop"><span class="rname">Svelte</span><span class="rfig">62 · 31%</span></div><div class="track"><div class="fill" style="width:31%"></div></div></div>
+      <div class="rrow"><div class="rtop"><span class="rname">Vue</span><span class="rfig">10 · 5%</span></div><div class="track"><div class="fill" style="width:5%"></div></div></div>
+    </div>
+    <div class="foot">Total 200 Ballots · View Analytics ✦</div>
+  </div>
+
+  <div class="label">Analytics + my polls</div>
+  <div class="frame"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+    <p class="kicker">The Returns Desk</p>
+    <h1>By The Numbers</h1>
+    <div class="stats">
+      <div class="stat"><div class="nn">200</div><div class="ll">Total Votes</div></div>
+      <div class="stat"><div class="nn">14:32</div><div class="ll">Peak Minute</div></div>
+      <div class="stat"><div class="nn">React</div><div class="ll">Top Option</div></div>
+    </div>
+    <div class="divider">✦ ◈ ✦</div>
+    <div class="ledger"><div><div class="q">Which JS Framework Wins?</div><div class="m">№ 7fGh2 · 200 Votes</div></div><span class="pill open">Open</span></div>
+    <div class="ledger"><div><div class="q">Best Pizza Topping?</div><div class="m">№ k9Lm2 · 1,204 Votes</div></div><span class="pill closed">Closed</span></div>
+  </div>
+
+</div>
+</body>
+</html>

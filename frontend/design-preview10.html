@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AURORA UI — Design Preview 10 (ui-ux-pro-max)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#E11D48; --secondary:#FB7185; --accent:#2563EB; --bg:#FFF1F2;
+    --fg:#881337; --ink:#4c1024; --muted-fg:#9f6675; --border:#FECDD3; --danger:#DC2626;
+    --card:rgba(255,255,255,0.72);
+    --display:"Space Grotesk",sans-serif; --body:"DM Sans",sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--body);color:var(--ink);font-size:16px;line-height:1.55;background:var(--bg);min-height:100vh;overflow-x:hidden;}
+  /* flowing aurora mesh */
+  body::before{content:"";position:fixed;inset:-20%;z-index:0;pointer-events:none;
+    background:
+      radial-gradient(35rem 28rem at 15% 12%, rgba(225,29,72,.35), transparent 55%),
+      radial-gradient(32rem 26rem at 85% 8%, rgba(37,99,235,.30), transparent 55%),
+      radial-gradient(34rem 30rem at 75% 95%, rgba(251,113,133,.40), transparent 55%),
+      radial-gradient(30rem 26rem at 10% 90%, rgba(168,85,247,.28), transparent 55%);
+    filter:blur(20px);animation:drift 14s ease-in-out infinite alternate;}
+  @keyframes drift{to{transform:translate3d(2%,-2%,0) scale(1.06);}}
+  .wrap{max-width:700px;margin:0 auto;padding:0 18px 90px;position:relative;z-index:1;}
+  .note{margin:22px 0 0;background:var(--card);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.6);border-radius:14px;padding:12px 16px;font-size:13px;color:var(--fg);}
+  .label{margin:46px 0 12px;font-family:var(--display);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted-fg);}
+  .card{background:var(--card);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.65);border-radius:22px;box-shadow:0 24px 60px -28px rgba(136,19,55,.45);padding:26px;margin-top:18px;}
+  header{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-radius:18px;}
+  .wm{font-family:var(--display);font-weight:700;font-size:21px;display:flex;align-items:center;gap:10px;
+    background:linear-gradient(90deg,var(--primary),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .dot{width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,var(--primary),var(--secondary));display:grid;place-items:center;color:#fff;font-weight:700;}
+  nav{display:flex;gap:6px;flex-wrap:wrap;}
+  nav a{font-family:var(--display);font-size:13px;font-weight:500;color:var(--fg);text-decoration:none;padding:8px 13px;border-radius:999px;}
+  nav a.on{background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;}
+  nav a:hover{background:rgba(255,255,255,.5);}
+  h1{font-family:var(--display);font-weight:700;font-size:clamp(25px,5vw,35px);letter-spacing:-.02em;margin:0 0 14px;color:var(--ink);}
+  .lab{display:block;font-family:var(--display);font-size:12px;font-weight:500;color:var(--muted-fg);margin:16px 0 7px;}
+  input.in{width:100%;border:1px solid var(--border);border-radius:13px;background:rgba(255,255,255,.7);padding:12px 15px;font-family:var(--body);font-size:16px;color:var(--ink);outline:none;}
+  input.in:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(225,29,72,.16);}
+  .seg{display:flex;flex-wrap:wrap;gap:8px;}
+  .seg button{font-family:var(--display);font-weight:500;font-size:13px;border:1px solid var(--border);background:rgba(255,255,255,.6);border-radius:11px;padding:9px 14px;cursor:pointer;color:var(--fg);}
+  .seg button.on{background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;border-color:transparent;}
+  .optrow{display:flex;align-items:center;gap:10px;margin:10px 0;}
+  .optrow .n{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;display:grid;place-items:center;font-family:var(--display);font-weight:600;font-size:13px;}
+  .optrow input{flex:1;border:1px solid var(--border);border-radius:11px;background:rgba(255,255,255,.7);padding:10px 13px;font-family:var(--body);color:var(--ink);}
+  .optrow .x{border:1px solid var(--border);background:rgba(255,255,255,.6);color:var(--danger);width:34px;height:34px;border-radius:9px;cursor:pointer;}
+  .add{font-family:var(--display);font-weight:500;border:1px dashed var(--secondary);background:transparent;color:var(--primary);border-radius:11px;padding:10px 14px;cursor:pointer;margin-top:6px;}
+  .btn{font-family:var(--display);font-weight:600;border:0;border-radius:14px;background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;font-size:15px;padding:14px 24px;cursor:pointer;margin-top:22px;box-shadow:0 14px 30px -12px rgba(225,29,72,.6);}
+  .btn.block{display:block;width:100%;text-align:center;}
+  /* vote */
+  .vopt{display:flex;align-items:center;gap:14px;border:1px solid var(--border);background:rgba(255,255,255,.6);border-radius:16px;padding:14px 16px;margin:11px 0;cursor:pointer;}
+  .vopt .t{flex:1;font-weight:500;font-size:17px;}
+  .check{width:28px;height:28px;border-radius:50%;border:1px solid var(--border);display:grid;place-items:center;color:#fff;}
+  .vopt.on{border-color:transparent;background:linear-gradient(135deg,rgba(225,29,72,.12),rgba(251,113,133,.12));box-shadow:0 0 0 1px var(--primary) inset;}
+  .vopt.on .check{background:linear-gradient(135deg,var(--primary),var(--secondary));}
+  .caststamp{display:inline-flex;align-items:center;gap:8px;margin-top:18px;background:linear-gradient(135deg,var(--primary),var(--secondary));color:#fff;border-radius:999px;padding:9px 18px;font-family:var(--display);font-weight:600;box-shadow:0 10px 22px -10px rgba(225,29,72,.7);}
+  /* results */
+  .live{display:inline-flex;align-items:center;gap:7px;font-family:var(--display);font-size:12px;font-weight:600;color:var(--primary);}
+  .live .d{width:8px;height:8px;border-radius:50%;background:var(--primary);box-shadow:0 0 10px var(--primary);animation:p 1.2s infinite;}@keyframes p{50%{opacity:.4;}}
+  .rrow{margin:15px 0;}
+  .rtop{display:flex;justify-content:space-between;font-family:var(--display);font-weight:600;}
+  .rfig{color:var(--muted-fg);font-variant-numeric:tabular-nums;}
+  .track{height:15px;background:rgba(255,255,255,.55);border:1px solid var(--border);border-radius:999px;margin-top:7px;overflow:hidden;}
+  .fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--primary),var(--secondary));}
+  .fill.b{background:linear-gradient(90deg,#60a5fa,var(--accent));}.fill.c{background:linear-gradient(90deg,#c084fc,#a855f7);}
+  .foot{color:var(--muted-fg);font-size:13px;margin-top:16px;}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px;}
+  .stat{border:1px solid rgba(255,255,255,.6);border-radius:16px;padding:16px;background:rgba(255,255,255,.5);}
+  .stat .nn{font-family:var(--display);font-weight:700;font-size:26px;background:linear-gradient(135deg,var(--primary),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent;line-height:1;}
+  .stat .ll{font-size:11px;color:var(--muted-fg);margin-top:6px;}
+  .ledger{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--border);background:rgba(255,255,255,.55);border-radius:14px;padding:13px 16px;margin:10px 0;}
+  .ledger .q{font-family:var(--display);font-weight:600;}.ledger .m{color:var(--muted-fg);font-size:13px;}
+  .pill{font-family:var(--display);font-size:11px;font-weight:600;border-radius:999px;padding:5px 12px;color:#fff;}
+  .pill.open{background:linear-gradient(135deg,var(--primary),var(--secondary));}.pill.closed{background:#c9a9b2;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note">Preview 10 / 10 — AURORA UI (ui-ux-pro-max) :: flowing mesh-gradient bg, glassy cards, rose + engagement-blue, Space Grotesk + DM Sans. Premium & energetic.</div>
+
+  <div class="label">App shell</div>
+  <header class="card">
+    <div class="wm"><span class="dot">P</span> PollBuilder</div>
+    <nav><a class="on" href="#">Create</a><a href="#">My Polls</a><a href="#">Log in</a><a href="#">Register</a></nav>
+  </header>
+
+  <div class="label">Create a poll</div>
+  <section class="card">
+    <h1>Create a poll</h1>
+    <span class="lab">Question</span>
+    <input class="in" value="Which JS framework wins in 2026?">
+    <span class="lab">Type</span>
+    <div class="seg"><button class="on">Multiple</button><button>Yes / No</button><button>Rating</button><button>Open text</button></div>
+    <span class="lab">Options</span>
+    <div class="optrow"><span class="n">1</span><input value="React"><button class="x">✕</button></div>
+    <div class="optrow"><span class="n">2</span><input value="Svelte"><button class="x">✕</button></div>
+    <div class="optrow"><span class="n">3</span><input value="Vue"><button class="x">✕</button></div>
+    <button class="add">+ Add option</button>
+    <button class="btn block">Create poll</button>
+  </section>
+
+  <div class="label">Vote</div>
+  <section class="card">
+    <h1>Which JS framework wins in 2026?</h1>
+    <div class="vopt"><span class="t">React</span><span class="check"></span></div>
+    <div class="vopt on"><span class="t">Svelte</span><span class="check">✓</span></div>
+    <div class="vopt"><span class="t">Vue</span><span class="check"></span></div>
+    <button class="btn">Cast vote</button>
+    <div><span class="caststamp">✓ Vote recorded</span></div>
+  </section>
+
+  <div class="label">Live results</div>
+  <section class="card">
+    <h1>Which framework wins?</h1>
+    <span class="live"><span class="d"></span> Live · 0.3s ago</span>
+    <div class="rrow"><div class="rtop"><span>React</span><span class="rfig">128 · 64%</span></div><div class="track"><div class="fill" style="width:64%"></div></div></div>
+    <div class="rrow"><div class="rtop"><span>Svelte</span><span class="rfig">62 · 31%</span></div><div class="track"><div class="fill b" style="width:31%"></div></div></div>
+    <div class="rrow"><div class="rtop"><span>Vue</span><span class="rfig">10 · 5%</span></div><div class="track"><div class="fill c" style="width:5%"></div></div></div>
+    <div class="foot">200 votes total · View analytics →</div>
+  </section>
+
+  <div class="label">Analytics + my polls</div>
+  <section class="card">
+    <div class="stats">
+      <div class="stat"><div class="nn">200</div><div class="ll">Total votes</div></div>
+      <div class="stat"><div class="nn">14:32</div><div class="ll">Peak minute</div></div>
+      <div class="stat"><div class="nn">React</div><div class="ll">Top option</div></div>
+    </div>
+    <div style="height:16px"></div>
+    <div class="ledger"><div><div class="q">Which JS framework wins?</div><div class="m">7fGh2 · 200 votes</div></div><span class="pill open">Open</span></div>
+    <div class="ledger"><div><div class="q">Best pizza topping?</div><div class="m">k9Lm2 · 1,204 votes</div></div><span class="pill closed">Closed</span></div>
+  </section>
+</div>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PLAYFUL / SOFT — Design Preview 3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fff6fb; --card:#ffffff; --ink:#3a2b4d; --muted:#9b8aab;
+    --coral:#ff6b8a; --mint:#3ed8c0; --sun:#ffd44d; --violet:#8b6cff; --sky:#5ec6ff;
+    --display:"Baloo 2",cursive; --body:"Figtree",sans-serif;
+    --r:22px; --soft:0 12px 30px -12px rgba(139,108,255,.35);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:var(--body);color:var(--ink);font-size:17px;line-height:1.55;
+    background:
+      radial-gradient(circle at 12% 8%,rgba(255,107,138,.18),transparent 40%),
+      radial-gradient(circle at 88% 14%,rgba(94,198,255,.18),transparent 40%),
+      radial-gradient(circle at 50% 100%,rgba(62,216,192,.16),transparent 45%),
+      var(--bg);
+    min-height:100vh;}
+  .wrap{max-width:680px;margin:0 auto;padding:0 18px 90px;}
+  .note{max-width:680px;margin:22px auto 0;background:#fff;border-radius:16px;box-shadow:var(--soft);padding:12px 16px;font-size:13px;color:var(--violet);font-weight:600;}
+  .label{margin:46px 0 12px;font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);}
+  /* header */
+  header{background:#fff;border-radius:var(--r);box-shadow:var(--soft);padding:18px 22px;margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+  .wm{font-family:var(--display);font-weight:800;font-size:26px;background:linear-gradient(90deg,var(--coral),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent;display:flex;align-items:center;gap:8px;}
+  .wm .blob{width:30px;height:30px;background:var(--sun);border-radius:42% 58% 63% 37%/47% 38% 62% 53%;display:grid;place-items:center;font-size:16px;-webkit-text-fill-color:initial;}
+  nav{display:flex;gap:8px;flex-wrap:wrap;}
+  nav a{text-decoration:none;font-weight:600;font-size:14px;color:var(--ink);background:#f3edff;padding:8px 14px;border-radius:999px;}
+  nav a.on{background:var(--violet);color:#fff;}
+  nav a:hover{transform:translateY(-2px);}
+  /* card */
+  .card{background:var(--card);border-radius:var(--r);box-shadow:var(--soft);padding:26px;margin-top:20px;}
+  .chip{display:inline-block;font-weight:700;font-size:12px;border-radius:999px;padding:5px 12px;background:#fff0f4;color:var(--coral);margin-bottom:12px;}
+  h1{font-family:var(--display);font-weight:800;font-size:clamp(26px,5.5vw,36px);line-height:1.05;margin:0 0 14px;}
+  .lab{display:block;font-weight:700;font-size:13px;color:var(--muted);margin:16px 0 8px;}
+  input.in{width:100%;border:2px solid #efe7fb;border-radius:14px;padding:13px 15px;font-family:var(--body);font-size:17px;background:#fcfaff;outline:none;}
+  input.in:focus{border-color:var(--violet);}
+  .seg{display:flex;flex-wrap:wrap;gap:8px;}
+  .seg button{border:0;border-radius:999px;font-family:var(--body);font-weight:700;font-size:13px;padding:9px 15px;cursor:pointer;background:#f2eefe;color:var(--ink);}
+  .seg button.on{background:var(--mint);color:#0b3b34;}
+  .optrow{display:flex;align-items:center;gap:10px;margin:10px 0;}
+  .optrow .n{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:800;color:#fff;font-family:var(--display);}
+  .optrow:nth-child(1) .n{background:var(--coral);}.optrow:nth-child(2) .n{background:var(--sky);}.optrow:nth-child(3) .n{background:var(--sun);color:#5a4a14;}
+  .optrow input{flex:1;border:2px solid #efe7fb;border-radius:12px;padding:10px 13px;font-family:var(--body);font-size:16px;background:#fcfaff;}
+  .optrow .x{border:0;background:#ffe3ea;color:var(--coral);width:34px;height:34px;border-radius:50%;cursor:pointer;font-weight:700;}
+  .add{border:2px dashed #d9ccf7;background:transparent;color:var(--violet);font-weight:700;border-radius:14px;padding:10px 16px;cursor:pointer;margin-top:6px;}
+  .btn{display:inline-block;border:0;border-radius:16px;font-family:var(--display);font-weight:800;font-size:18px;color:#fff;
+    background:linear-gradient(90deg,var(--coral),var(--violet));padding:14px 26px;cursor:pointer;margin-top:22px;box-shadow:0 10px 22px -8px var(--violet);}
+  .btn:hover{transform:translateY(-2px);}
+  .btn.block{display:block;width:100%;text-align:center;}
+  /* vote */
+  .vopt{display:flex;align-items:center;gap:14px;border:2px solid #efe7fb;border-radius:18px;padding:14px 16px;margin:12px 0;cursor:pointer;background:#fcfaff;}
+  .vopt .t{flex:1;font-weight:600;font-size:18px;}
+  .vopt .em{font-size:22px;}
+  .check{width:30px;height:30px;border-radius:50%;border:2px solid #ddd0f5;display:grid;place-items:center;color:#fff;}
+  .vopt.on{border-color:var(--mint);background:#effdf9;box-shadow:0 8px 18px -10px var(--mint);}
+  .vopt.on .check{background:var(--mint);border-color:var(--mint);}
+  .caststamp{display:inline-block;margin-top:18px;background:var(--sun);color:#5a4a14;font-family:var(--display);font-weight:800;border-radius:999px;padding:10px 20px;}
+  /* results */
+  .live{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:13px;color:var(--coral);}
+  .live .d{width:9px;height:9px;border-radius:50%;background:var(--coral);animation:p 1.1s infinite;}@keyframes p{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.5);opacity:.5;}}
+  .rrow{margin:16px 0;}
+  .rtop{display:flex;justify-content:space-between;font-weight:700;}
+  .rfig{color:var(--muted);font-weight:600;}
+  .track{height:18px;background:#f1ebfd;border-radius:999px;margin-top:6px;overflow:hidden;}
+  .fill{height:100%;border-radius:999px;}
+  .fill.lead{background:linear-gradient(90deg,var(--coral),var(--violet));}
+  .fill.b{background:var(--sky);}.fill.c{background:var(--sun);}
+  .foot{color:var(--muted);font-size:13px;margin-top:16px;}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px;}
+  .stat{border-radius:18px;padding:16px;color:#fff;}
+  .stat:nth-child(1){background:linear-gradient(135deg,var(--coral),#ff9a8a);}
+  .stat:nth-child(2){background:linear-gradient(135deg,var(--violet),var(--sky));}
+  .stat:nth-child(3){background:linear-gradient(135deg,var(--mint),#7ef0a8);color:#0b3b34;}
+  .stat .nn{font-family:var(--display);font-weight:800;font-size:28px;line-height:1;}
+  .stat .ll{font-size:11px;font-weight:700;opacity:.9;margin-top:6px;text-transform:uppercase;letter-spacing:.04em;}
+  .ledger{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#fcfaff;border:2px solid #efe7fb;border-radius:16px;padding:14px 16px;margin:10px 0;}
+  .ledger .q{font-weight:700;}.ledger .m{color:var(--muted);font-size:13px;}
+  .pill{font-weight:700;font-size:12px;border-radius:999px;padding:5px 12px;}
+  .pill.open{background:#e6fbf4;color:#0e9b7e;}.pill.closed{background:#ffe9ee;color:var(--coral);}
+</style>
+</head>
+<body>
+<div class="note">PREVIEW 3 / 5 — PLAYFUL / SOFT :: rounded pills & cards, candy gradients, Baloo 2 + Figtree, friendly emoji. Approachable & fun.</div>
+<div class="wrap">
+
+  <div class="label">App shell</div>
+  <header>
+    <div class="wm"><span class="blob">🗳️</span> PollParty</div>
+    <nav><a class="on" href="#">Create</a><a href="#">My Polls</a><a href="#">Log in</a><a href="#">Sign up</a></nav>
+  </header>
+
+  <div class="label">Create a poll</div>
+  <section class="card">
+    <span class="chip">✨ New poll</span>
+    <h1>What should we ask?</h1>
+    <span class="lab">Your question</span>
+    <input class="in" value="Which JS framework wins in 2026?">
+    <span class="lab">Poll type</span>
+    <div class="seg"><button class="on">Choices</button><button>Yes / No</button><button>Rating</button><button>Open text</button></div>
+    <span class="lab">Options</span>
+    <div class="optrow"><span class="n">1</span><input value="React"><button class="x">✕</button></div>
+    <div class="optrow"><span class="n">2</span><input value="Svelte"><button class="x">✕</button></div>
+    <div class="optrow"><span class="n">3</span><input value="Vue"><button class="x">✕</button></div>
+    <button class="add">+ Add another</button>
+    <button class="btn block">Launch poll 🚀</button>
+  </section>
+
+  <div class="label">Vote</div>
+  <section class="card">
+    <span class="chip">Poll #7fGh2</span>
+    <h1>Which JS framework wins in 2026?</h1>
+    <div class="vopt"><span class="em">⚛️</span><span class="t">React</span><span class="check"></span></div>
+    <div class="vopt on"><span class="em">🔥</span><span class="t">Svelte</span><span class="check">✓</span></div>
+    <div class="vopt"><span class="em">💚</span><span class="t">Vue</span><span class="check"></span></div>
+    <button class="btn">Vote now</button>
+    <div><span class="caststamp">🎉 Thanks for voting!</span></div>
+  </section>
+
+  <div class="label">Live results</div>
+  <section class="card">
+    <span class="chip">Results</span>
+    <h1>Which framework wins?</h1>
+    <span class="live"><span class="d"></span> Live · updating</span>
+    <div class="rrow"><div class="rtop"><span>⚛️ React</span><span class="rfig">128 · 64%</span></div><div class="track"><div class="fill lead" style="width:64%"></div></div></div>
+    <div class="rrow"><div class="rtop"><span>🔥 Svelte</span><span class="rfig">62 · 31%</span></div><div class="track"><div class="fill b" style="width:31%"></div></div></div>
+    <div class="rrow"><div class="rtop"><span>💚 Vue</span><span class="rfig">10 · 5%</span></div><div class="track"><div class="fill c" style="width:5%"></div></div></div>
+    <div class="foot">200 votes so far · See analytics →</div>
+  </section>
+
+  <div class="label">Analytics + my polls</div>
+  <section class="card">
+    <span class="chip">📊 Analytics</span>
+    <div class="stats">
+      <div class="stat"><div class="nn">200</div><div class="ll">Total votes</div></div>
+      <div class="stat"><div class="nn">14:32</div><div class="ll">Peak minute</div></div>
+      <div class="stat"><div class="nn">React</div><div class="ll">Top pick</div></div>
+    </div>
+    <div style="height:16px"></div>
+    <div class="ledger"><div><div class="q">Which JS framework wins?</div><div class="m">#7fGh2 · 200 votes</div></div><span class="pill open">Open</span></div>
+    <div class="ledger"><div><div class="q">Best pizza topping? 🍕</div><div class="m">#k9Lm2 · 1,204 votes</div></div><span class="pill closed">Closed</span></div>
+  </section>
+
+</div>
+</body>
+</html>
