@@ -126,32 +126,39 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
+      # The hook check lives INSIDE the script (not a step-level `if`) so a
+      # missing secret surfaces as a visible ⚠️ warning instead of a silent skip.
       - name: Deploy Poll API
-        if: ${{ env.HOOK != '' }}
         env:
           HOOK: ${{ secrets.RENDER_HOOK_POLL_API }}
-        run: curl -fsS -X POST "$HOOK"
+        run: |
+          if [ -n "$HOOK" ]; then curl -fsS -X POST "$HOOK" && echo "Poll API deploy triggered";
+          else echo "::warning::RENDER_HOOK_POLL_API not set — Poll API NOT redeployed"; fi
 
       - name: Deploy Vote API
-        if: ${{ env.HOOK != '' }}
         env:
           HOOK: ${{ secrets.RENDER_HOOK_VOTE_API }}
-        run: curl -fsS -X POST "$HOOK"
+        run: |
+          if [ -n "$HOOK" ]; then curl -fsS -X POST "$HOOK" && echo "Vote API deploy triggered";
+          else echo "::warning::RENDER_HOOK_VOTE_API not set — Vote API NOT redeployed"; fi
 
       - name: Deploy Identity API
-        if: ${{ env.HOOK != '' }}
         env:
           HOOK: ${{ secrets.RENDER_HOOK_IDENTITY_API }}
-        run: curl -fsS -X POST "$HOOK"
+        run: |
+          if [ -n "$HOOK" ]; then curl -fsS -X POST "$HOOK" && echo "Identity API deploy triggered";
+          else echo "::warning::RENDER_HOOK_IDENTITY_API not set — Identity API NOT redeployed"; fi
 
       - name: Deploy Gateway
-        if: ${{ env.HOOK != '' }}
         env:
           HOOK: ${{ secrets.RENDER_HOOK_GATEWAY }}
-        run: curl -fsS -X POST "$HOOK"
+        run: |
+          if [ -n "$HOOK" ]; then curl -fsS -X POST "$HOOK" && echo "Gateway deploy triggered";
+          else echo "::warning::RENDER_HOOK_GATEWAY not set — Gateway NOT redeployed"; fi
 
       - name: Deploy Frontend
-        if: ${{ env.HOOK != '' }}
         env:
           HOOK: ${{ secrets.RENDER_HOOK_FRONTEND }}
-        run: curl -fsS -X POST "$HOOK"
+        run: |
+          if [ -n "$HOOK" ]; then curl -fsS -X POST "$HOOK" && echo "Frontend deploy triggered";
+          else echo "::warning::RENDER_HOOK_FRONTEND not set — Frontend NOT redeployed"; fi
