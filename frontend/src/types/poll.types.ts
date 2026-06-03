@@ -5,9 +5,12 @@ export interface PollOption {
   text: string;
 }
 
+export type QuestionType = 'SingleChoice' | 'YesNo' | 'Rating' | 'OpenText';
+
 export interface PollInfo {
   code: string;
   question: string;
+  type: string; // QuestionType
   status: string; // "Open" | "Closed"
   createdAt: string; // ISO 8601
   expiresAt: string | null;
@@ -18,6 +21,7 @@ export interface PollInfo {
 
 export interface CreatePollData {
   question: string;
+  type: QuestionType;
   options: string[];
   expiryHours?: number;
 }
@@ -32,12 +36,44 @@ export interface OptionResult {
 export interface VoteResults {
   pollCode: string;
   question: string;
+  type: string; // QuestionType
   totalVotes: number;
   isActive: boolean;
   options: OptionResult[];
+  textAnswers: string[];
 }
 
 // ── Auth (Identity API via Gateway) ─────────────────────────
 export interface AuthResponse {
   token: string;
+}
+
+// ── Analytics (Vote API via Gateway) ────────────────────────
+export interface TimeBucket {
+  minute: string; // ISO 8601, truncated to the minute (UTC)
+  count: number;
+}
+
+export interface TopOption {
+  optionIndex: number;
+  text: string;
+  voteCount: number;
+}
+
+export interface Analytics {
+  pollCode: string;
+  question: string;
+  totalVotes: number;
+  topOption: TopOption | null;
+  peakMinute: TimeBucket | null;
+  timeline: TimeBucket[];
+}
+
+// ── Q&A (Vote API via Gateway + SignalR) ────────────────────
+export interface Question {
+  id: string;
+  text: string;
+  upvotes: number;
+  isPinned: boolean;
+  createdAt: string;
 }

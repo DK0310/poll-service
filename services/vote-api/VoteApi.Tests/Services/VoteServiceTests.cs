@@ -158,6 +158,38 @@ public class VoteServiceTests
             Times.Never);
     }
 
+    // ── Open-text question type (Merit) ─────────────────────────
+
+    [Fact]
+    public async Task SubmitVote_OpenText_StoresTextAnswer_AndReturnsAnswers()
+    {
+        var poll = ActivePoll("ot01") with { Type = "OpenText", Options = new() };
+        _pollClient.Setup(c => c.GetPollAsync("ot01")).ReturnsAsync(poll);
+        _repo.Setup(r => r.HasVotedAsync("ot01", "t")).ReturnsAsync(false);
+        _repo.Setup(r => r.GetTextAnswersAsync("ot01")).ReturnsAsync(new List<string> { "Great poll" });
+        Vote? saved = null;
+        _repo.Setup(r => r.AddAsync(It.IsAny<Vote>())).Callback<Vote>(v => saved = v).Returns(Task.CompletedTask);
+
+        var result = await _sut.SubmitVoteAsync("ot01", new VoteRequest { TextAnswer = "Great poll", VoterToken = "t" });
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("OpenText", result.Value!.Type);
+        Assert.Contains("Great poll", result.Value.TextAnswers);
+        Assert.Equal("Great poll", saved!.TextAnswer);
+    }
+
+    [Fact]
+    public async Task SubmitVote_OpenText_ReturnsFailure_WhenTextEmpty()
+    {
+        var poll = ActivePoll("ot01") with { Type = "OpenText", Options = new() };
+        _pollClient.Setup(c => c.GetPollAsync("ot01")).ReturnsAsync(poll);
+
+        var result = await _sut.SubmitVoteAsync("ot01", new VoteRequest { TextAnswer = "", VoterToken = "t" });
+
+        Assert.False(result.IsSuccess);
+        _repo.Verify(r => r.AddAsync(It.IsAny<Vote>()), Times.Never);
+    }
+
     // ── Get results ─────────────────────────────────────────────
 
     [Fact]
@@ -200,5 +232,60 @@ public class VoteServiceTests
 
         Assert.False(result.IsSuccess);
         Assert.Contains("not found", result.Error!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ── Analytics (Distinction) ─────────────────────────────────
+
+    [Fact]
+    public async Task GetAnalytics_ReturnsTopOptionAndPeakMinute()
+    {
+        _pollClient.Setup(c => c.GetPollAsync("abc12")).ReturnsAsync(ActivePoll(optionCount: 2));
+        _repo.Setup(r => r.GetVoteCountsAsync("abc12")).ReturnsAsync(new List<VoteCount>
+        {
+            new() { OptionIndex = 0, Count = 3 },
+            new() { OptionIndex = 1, Count = 1 }
+        });
+        var minute1 = new DateTime(2026, 1, 1, 10, 0, 0, DateTimeKind.Utc);
+        var minute2 = new DateTime(2026, 1, 1, 10, 1, 0, DateTimeKind.Utc);
+        _repo.Setup(r => r.GetVoteTimestampsAsync("abc12")).ReturnsAsync(new List<DateTime>
+        {
+            minute1, minute1.AddSeconds(20), minute1.AddSeconds(40), minute2.AddSeconds(5)
+        });
+
+        var result = await _sut.GetAnalyticsAsync("abc12");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(4, result.Value!.TotalVotes);
+        Assert.Equal(0, result.Value.TopOption!.OptionIndex);
+        Assert.Equal(3, result.Value.TopOption.VoteCount);
+        Assert.Equal(2, result.Value.Timeline.Count);          // two distinct minutes
+        Assert.Equal(minute1, result.Value.PeakMinute!.Minute); // busiest minute
+        Assert.Equal(3, result.Value.PeakMinute.Count);
+    }
+
+    [Fact]
+    public async Task GetAnalytics_IsEmpty_WhenNoVotes()
+    {
+        _pollClient.Setup(c => c.GetPollAsync("abc12")).ReturnsAsync(ActivePoll());
+        _repo.Setup(r => r.GetVoteCountsAsync("abc12")).ReturnsAsync(new List<VoteCount>());
+        _repo.Setup(r => r.GetVoteTimestampsAsync("abc12")).ReturnsAsync(new List<DateTime>());
+
+        var result = await _sut.GetAnalyticsAsync("abc12");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.Value!.TotalVotes);
+        Assert.Null(result.Value.TopOption);
+        Assert.Null(result.Value.PeakMinute);
+        Assert.Empty(result.Value.Timeline);
+    }
+
+    [Fact]
+    public async Task GetAnalytics_ReturnsFailure_WhenPollNotFound()
+    {
+        _pollClient.Setup(c => c.GetPollAsync("nope1")).ReturnsAsync((PollInfo?)null);
+
+        var result = await _sut.GetAnalyticsAsync("nope1");
+
+        Assert.False(result.IsSuccess);
     }
 }

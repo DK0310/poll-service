@@ -12,6 +12,7 @@ builder.Services.AddDbContext<PollDbContext>(opt =>
 
 builder.Services.AddScoped<PollRepository>();
 builder.Services.AddScoped<PollService>();
+builder.Services.AddHostedService<PollCleanupService>();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();

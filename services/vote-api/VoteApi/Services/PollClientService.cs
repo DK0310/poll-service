@@ -34,6 +34,7 @@ public record PollInfo
 {
     public string Code { get; init; } = "";
     public string Question { get; init; } = "";
+    public string Type { get; init; } = "SingleChoice";
     public bool IsActive { get; init; }
     public List<PollOptionInfo> Options { get; init; } = new();
 }

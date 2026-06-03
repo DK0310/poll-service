@@ -3,14 +3,19 @@ import { Link } from 'react-router-dom';
 import { PollForm } from '../components/PollForm';
 import { ShareLink } from '../components/ShareLink';
 import { useCreatePoll } from '../hooks/useCreatePoll';
-import type { PollInfo } from '../types/poll.types';
+import type { PollInfo, QuestionType } from '../types/poll.types';
 
 export function CreatePollPage() {
   const { createPoll, loading, error } = useCreatePoll();
   const [result, setResult] = useState<PollInfo | null>(null);
 
-  const handleSubmit = async (question: string, options: string[], expiryHours?: number) => {
-    const poll = await createPoll({ question, options, expiryHours });
+  const handleSubmit = async (
+    question: string,
+    type: QuestionType,
+    options: string[],
+    expiryHours?: number,
+  ) => {
+    const poll = await createPoll({ question, type, options, expiryHours });
     if (poll) setResult(poll);
   };
 

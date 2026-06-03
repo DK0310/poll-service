@@ -45,7 +45,7 @@ Poll & Survey Builder is a **microservices-based** real-time polling platform bu
     │   IdentityDb     │      │      │      │                │
     │   (Users)        │      │      │      │   ┌────────────▼────────────┐
     └──────────────────┘      │      │      │   │   VoteDb                │
-                              │      │      │   │   (Votes)               │
+                              │      │      │   │   (Votes, Questions)    │
                      ┌────────▼──────▼──────▼┐  └─────────────────────────┘
                      │   Poll API            │
                      │   /api/polls/*        │        ─── HTTP (sync) ───▶
@@ -72,7 +72,7 @@ Poll & Survey Builder is a **microservices-based** real-time polling platform bu
 | ORM | Entity Framework Core | 10.0 |
 | Real-Time | SignalR WebSocket | ASP.NET Core 10 |
 | Auth | JWT Bearer (7-day expiry, validated at Gateway) | — |
-| Charts | Chart.js or Recharts | Latest |
+| Charts | Hand-rolled SVG (`LiveBarChart`, `LineChart`) | — |
 | SignalR client | `@microsoft/signalr` | Latest |
 | Password hashing | BCrypt | — |
 | Containers | Docker (multi-stage) | Latest |
@@ -115,11 +115,11 @@ The Gateway is the **single entry point** for all external traffic. It:
 | Property | Value |
 |---|---|
 | Port | 5002 (external), 8080 (container) |
-| Responsibility | Vote submission, results aggregation, **real-time broadcasting** |
-| Database | `VoteDb` — Votes table |
-| Owns | Votes |
+| Responsibility | Vote submission, results aggregation, **real-time broadcasting**, creator analytics, anonymous Q&A |
+| Database | `VoteDb` — Votes, Questions tables |
+| Owns | Votes, Questions |
 | Consumes | Calls Poll API over HTTP to validate a poll exists and is active before accepting a vote |
-| Special | **SignalR Hub** at `/hubs/poll` for live vote updates |
+| Special | **SignalR Hub** at `/hubs/poll` for live vote updates (`ReceiveVoteUpdate`) and live Q&A (`ReceiveQuestionsUpdate`) |
 
 ### 4. Identity API
 
@@ -187,19 +187,25 @@ poll-service/
 │   ├── vote-api/                          ← Voting + real-time microservice
 │   │   ├── VoteApi/                       ← ASP.NET Core + SignalR
 │   │   │   ├── Controllers/
-│   │   │   │   └── VotesController.cs      ← Vote submission + results
+│   │   │   │   ├── VotesController.cs      ← Vote submission + results + analytics
+│   │   │   │   └── QuestionsController.cs  ← Anonymous Q&A (list/ask/upvote/pin)
 │   │   │   ├── Hubs/
-│   │   │   │   └── PollHub.cs              ← SignalR hub for live results
+│   │   │   │   └── PollHub.cs              ← SignalR hub for live results + Q&A
 │   │   │   ├── Services/
-│   │   │   │   ├── VoteService.cs          ← Vote logic + broadcast
+│   │   │   │   ├── VoteService.cs          ← Vote logic + analytics + broadcast
+│   │   │   │   ├── QuestionService.cs      ← Q&A logic + broadcast
 │   │   │   │   └── PollClientService.cs    ← HTTP client to Poll API
 │   │   │   ├── Repositories/
-│   │   │   │   └── VoteRepository.cs
+│   │   │   │   ├── VoteRepository.cs
+│   │   │   │   └── QuestionRepository.cs
 │   │   │   ├── DTOs/
 │   │   │   │   ├── VoteRequest.cs
-│   │   │   │   └── VoteResultsResponse.cs
+│   │   │   │   ├── VoteResultsResponse.cs
+│   │   │   │   ├── AnalyticsResponse.cs    ← Votes-over-time, peak, top option
+│   │   │   │   └── QuestionDtos.cs         ← SubmitQuestionRequest, QuestionResponse
 │   │   │   ├── Models/
-│   │   │   │   └── Vote.cs
+│   │   │   │   ├── Vote.cs
+│   │   │   │   └── Question.cs
 │   │   │   ├── Data/
 │   │   │   │   ├── VoteDbContext.cs
 │   │   │   │   └── Migrations/
@@ -234,6 +240,8 @@ poll-service/
 │   │   │   └── Program.cs
 │   │   ├── IdentityApi.Tests/
 │   │   │   ├── Services/AuthServiceTests.cs
+│   │   │   ├── Integration/AuthEndpointTests.cs
+│   │   │   ├── Integration/CustomWebAppFactory.cs
 │   │   │   └── IdentityApi.Tests.csproj
 │   │   ├── Dockerfile
 │   │   └── IdentityApi.sln
@@ -254,19 +262,24 @@ poll-service/
 │   │   ├── hooks/
 │   │   │   ├── useCreatePoll.ts            ← Poll creation
 │   │   │   ├── usePollInfo.ts              ← Fetch poll by code
-│   │   │   ├── useVote.ts                  ← Submit vote
+│   │   │   ├── useVote.ts                  ← Submit vote (option or text)
 │   │   │   ├── useLiveResults.ts           ← SignalR + initial results
+│   │   │   ├── useAnalytics.ts             ← Fetch creator analytics
+│   │   │   ├── useQuestions.ts             ← Q&A SignalR + submit/upvote/pin
 │   │   │   └── useMyPolls.ts               ← Fetch creator's polls
 │   │   ├── components/
-│   │   │   ├── PollForm.tsx                ← Create poll form (question + options)
-│   │   │   ├── VoteForm.tsx                ← Vote selection interface
+│   │   │   ├── PollForm.tsx                ← Create poll form (question + type + options)
+│   │   │   ├── VoteForm.tsx                ← Vote interface (radios/rating/text by type)
 │   │   │   ├── LiveBarChart.tsx            ← Animated results bar chart
+│   │   │   ├── LineChart.tsx               ← SVG votes-over-time chart (analytics)
+│   │   │   ├── QandAPanel.tsx              ← Anonymous Q&A panel
 │   │   │   ├── PollCard.tsx                ← Poll summary card
 │   │   │   └── ShareLink.tsx               ← Copyable share link
 │   │   ├── pages/
 │   │   │   ├── CreatePollPage.tsx          ← Poll creation interface
 │   │   │   ├── VotePage.tsx                ← Voting page (by code)
 │   │   │   ├── ResultsPage.tsx             ← Live results page
+│   │   │   ├── AnalyticsPage.tsx           ← Creator analytics dashboard
 │   │   │   ├── MyPollsPage.tsx             ← Creator's poll dashboard
 │   │   │   ├── LoginPage.tsx               ← Login form
 │   │   │   └── RegisterPage.tsx            ← Registration form
@@ -303,7 +316,7 @@ Each service owns its data exclusively and has its own SQL Server database, DbCo
 | Service | Database | DbContext | Tables |
 |---|---|---|---|
 | Poll API | `PollDb` | `PollDbContext` | `Polls`, `PollOptions` |
-| Vote API | `VoteDb` | `VoteDbContext` | `Votes` |
+| Vote API | `VoteDb` | `VoteDbContext` | `Votes`, `Questions` |
 | Identity API | `IdentityDb` | `IdentityDbContext` | `Users` |
 
 > In development, all three databases can live in the same SQL Server instance (same `db` container, different `Database=` values). In production they may be separate databases or separate instances. EF Core migrations create each database independently.
@@ -318,16 +331,19 @@ Each service owns its data exclusively and has its own SQL Server database, DbCo
 │ ├─ Id (PK)      │ ├─ Id (PK)       │ ├─ Id (PK)            │
 │ ├─ Code (UQ)    │ ├─ PollCode      │ ├─ Email (UQ)         │
 │ ├─ Question     │ ├─ OptionIndex   │ ├─ PasswordHash       │
-│ ├─ Status       │ ├─ VoterToken    │ └─ CreatedAt          │
+│ ├─ Type         │ ├─ TextAnswer?   │ └─ CreatedAt          │
+│ ├─ Status       │ ├─ VoterToken    │                        │
 │ ├─ ExpiresAt    │ ├─ VotedAt       │                        │
 │ ├─ CreatorId    │ └─ UQ(PollCode,  │                        │
 │ └─ CreatedAt    │      VoterToken) │                        │
 │                 │                  │                        │
-│ PollOptions     │                  │                        │
-│ ├─ Id (PK)      │                  │                        │
-│ ├─ PollId (FK)  │                  │                        │
-│ ├─ OptionIndex  │                  │                        │
-│ └─ Text         │                  │                        │
+│ PollOptions     │ Questions        │                        │
+│ ├─ Id (PK)      │ ├─ Id (PK)       │                        │
+│ ├─ PollId (FK)  │ ├─ PollCode (ix) │                        │
+│ ├─ OptionIndex  │ ├─ Text          │                        │
+│ └─ Text         │ ├─ Upvotes       │                        │
+│                 │ ├─ IsPinned      │                        │
+│                 │ └─ CreatedAt     │                        │
 └─────────────────┴──────────────────┴────────────────────────┘
 ```
 
@@ -340,6 +356,7 @@ Each service owns its data exclusively and has its own SQL Server database, DbCo
 | Id | Guid | PK, `NEWID()` default |
 | Code | string | 5-char shareable identifier, **unique + indexed** |
 | Question | string | The poll question |
+| Type | PollQuestionType enum | SingleChoice / YesNo / Rating / OpenText (string, max 20) |
 | Status | PollStatus enum | Open / Closed (stored as string, max 20) |
 | ExpiresAt | DateTime? | Optional expiration |
 | CreatorId | Guid? | From JWT — **NOT a FK** (no Users table here) |
@@ -363,9 +380,21 @@ Computed (not persisted): `IsExpired`, `IsClosed`, `IsActive`.
 |---|---|---|
 | Id | Guid | PK, `NEWID()` default |
 | PollCode | string | Which poll — **NOT a FK** (different database) |
-| OptionIndex | int | Which option was chosen |
+| OptionIndex | int | Which option was chosen (0 for OpenText) |
+| TextAnswer | string? | Free-text answer for OpenText polls (max 1000); null otherwise |
 | VoterToken | string | Browser fingerprint / session cookie |
 | VotedAt | DateTime | UTC, `GETUTCDATE()` default |
+
+**Question** (`VoteDb.Questions`) — anonymous Q&A
+
+| Property | Type | Notes |
+|---|---|---|
+| Id | Guid | PK, `NEWID()` default |
+| PollCode | string | Which poll — **NOT a FK** (different database), indexed |
+| Text | string | The question text (max 1000) |
+| Upvotes | int | Audience upvote count |
+| IsPinned | bool | Highlighted/pinned by the host |
+| CreatedAt | DateTime | UTC, `GETUTCDATE()` default |
 
 **User** (`IdentityDb.Users`)
 
@@ -387,6 +416,7 @@ Computed (not persisted): `IsExpired`, `IsClosed`, `IsActive`.
 | VoteDb | `Votes.(PollCode, VoterToken)` (UNIQUE) | One vote per voter per poll |
 | VoteDb | `Votes.(PollCode, OptionIndex)` | Vote-count aggregation |
 | VoteDb | `Votes.VotedAt` | Analytics (votes over time) |
+| VoteDb | `Questions.PollCode` | List a poll's Q&A questions |
 | IdentityDb | `Users.Email` (UNIQUE) | Login lookup |
 
 ### Cross-Service References
@@ -415,9 +445,14 @@ All external endpoints are reached **through the Gateway**.
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/api/polls/{code}/vote` | No | Submit a vote |
-| GET | `/api/polls/{code}/results` | No | Get vote results |
-| WS | `/hubs/poll` | No | SignalR live results |
+| POST | `/api/polls/{code}/vote` | No | Submit a vote (option index, or text for OpenText polls) |
+| GET | `/api/polls/{code}/results` | No | Get vote results (or text answers for OpenText) |
+| GET | `/api/polls/{code}/analytics` | No | Votes-over-time, peak minute, top option |
+| GET | `/api/polls/{code}/questions` | No | List Q&A questions (pinned → upvotes → oldest) |
+| POST | `/api/polls/{code}/questions` | No | Submit a Q&A question |
+| POST | `/api/polls/{code}/questions/{id}/upvote` | No | Upvote a question |
+| POST | `/api/polls/{code}/questions/{id}/pin` | No | Toggle a question's pinned state |
+| WS | `/hubs/poll` | No | SignalR live results (`ReceiveVoteUpdate`) + Q&A (`ReceiveQuestionsUpdate`) |
 
 ### Identity API
 
@@ -438,6 +473,8 @@ A **gateway-wide YARP code transform** (`AddRequestTransform`) sets the `X-User-
 | 2 | vote-results | `/api/polls/{code}/results` | vote-api | No | — |
 | 3 | signalr-hub | `/hubs/{**remainder}` | vote-api | No | (WebSocket) |
 | 4 | auth-route | `/api/auth/{**remainder}` | identity-api | No | — |
+| 8 | vote-analytics | `/api/polls/{code}/analytics` | vote-api | No | — |
+| 9 | vote-questions | `/api/polls/{code}/questions/{**remainder}` | vote-api | No | — |
 | 5 | polls-protected | `/api/polls/my-polls` | poll-api | authenticated | ← `sub` |
 | 6 | polls-close | `/api/polls/{code}/close` (PATCH) | poll-api | authenticated | ← `sub` |
 | 7 | polls-delete | `/api/polls/{code}` (DELETE) | poll-api | authenticated | ← `sub` |
@@ -652,3 +689,7 @@ Docker image naming: `pollbuilder-{service}` (e.g. `pollbuilder-poll-api`) on Do
 | **Typed `HttpClient` for inter-service calls** | Correct `HttpClient` lifetime; avoids socket exhaustion |
 | **Docker multi-stage builds** | ~200 MB production images instead of ~900 MB |
 | **Voter deduplication via token** | Session/fingerprint-based — no login required for voters |
+| **`PollCleanupService` background hosted service** | Auto-closes expired polls without a manual trigger; interval is configurable (`PollCleanup:IntervalSeconds`) |
+| **Question type stored as a string** (`HasConversion<string>`) | Readable in the DB; new types add safely without re-ordering an int enum |
+| **OpenText answers in `Vote.TextAnswer`** | Reuses the Votes table/dedup path; results return `TextAnswers` instead of option tallies |
+| **Anonymous Q&A in Vote API** | Lives next to the real-time hub; broadcasts `ReceiveQuestionsUpdate` like vote updates — no login required |

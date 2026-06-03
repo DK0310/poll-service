@@ -29,13 +29,25 @@ public class VoteService
         if (!poll.IsActive)
             return Result<VoteResultsResponse>.Failure("Poll is closed or expired");
 
-        // 2. Validate the chosen option
-        if (request.OptionIndex < 0 || request.OptionIndex >= poll.Options.Count)
-            return Result<VoteResultsResponse>.Failure("Invalid option selected");
-
-        // 3. Validate the voter token
+        // 2. Validate the voter token
         if (string.IsNullOrWhiteSpace(request.VoterToken))
             return Result<VoteResultsResponse>.Failure("Voter token is required");
+
+        // 3. Validate the answer per poll type (OpenText = free text; others = option index)
+        var isOpenText = string.Equals(poll.Type, "OpenText", StringComparison.OrdinalIgnoreCase);
+        string? textAnswer = null;
+        var optionIndex = request.OptionIndex;
+        if (isOpenText)
+        {
+            if (string.IsNullOrWhiteSpace(request.TextAnswer))
+                return Result<VoteResultsResponse>.Failure("A text answer is required");
+            textAnswer = request.TextAnswer.Trim();
+            optionIndex = 0; // not used for tallying
+        }
+        else if (optionIndex < 0 || optionIndex >= poll.Options.Count)
+        {
+            return Result<VoteResultsResponse>.Failure("Invalid option selected");
+        }
 
         // 4. Enforce one vote per voter per poll
         if (await _repo.HasVotedAsync(code, request.VoterToken))
@@ -45,8 +57,9 @@ public class VoteService
         await _repo.AddAsync(new Vote
         {
             PollCode = code,
-            OptionIndex = request.OptionIndex,
+            OptionIndex = optionIndex,
             VoterToken = request.VoterToken,
+            TextAnswer = textAnswer,
             VotedAt = DateTime.UtcNow
         });
 
@@ -69,8 +82,66 @@ public class VoteService
         return Result<VoteResultsResponse>.Success(results);
     }
 
+    /// <summary>Creator analytics: votes over time (per-minute), peak minute, and the leading option.</summary>
+    public async Task<Result<AnalyticsResponse>> GetAnalyticsAsync(string code)
+    {
+        var poll = await _pollClient.GetPollAsync(code);
+        if (poll is null)
+            return Result<AnalyticsResponse>.Failure("Poll not found");
+
+        var counts = await _repo.GetVoteCountsAsync(code);
+        var timestamps = await _repo.GetVoteTimestampsAsync(code);
+        var totalVotes = counts.Sum(c => c.Count);
+
+        // Leading option (null when there are no votes yet, or for OpenText polls)
+        var isOpenText = string.Equals(poll.Type, "OpenText", StringComparison.OrdinalIgnoreCase);
+        TopOption? topOption = null;
+        if (!isOpenText && counts.Count > 0)
+        {
+            var best = counts.OrderByDescending(c => c.Count).First();
+            var text = poll.Options.FirstOrDefault(o => o.OptionIndex == best.OptionIndex)?.Text
+                       ?? $"Option {best.OptionIndex}";
+            topOption = new TopOption { OptionIndex = best.OptionIndex, Text = text, VoteCount = best.Count };
+        }
+
+        // Per-minute buckets (truncate VotedAt to the minute, UTC) → timeline + peak
+        var timeline = timestamps
+            .GroupBy(t => new DateTime(t.Year, t.Month, t.Day, t.Hour, t.Minute, 0, DateTimeKind.Utc))
+            .Select(g => new TimeBucket { Minute = g.Key, Count = g.Count() })
+            .OrderBy(b => b.Minute)
+            .ToList();
+        var peak = timeline.Count > 0
+            ? timeline.OrderByDescending(b => b.Count).ThenBy(b => b.Minute).First()
+            : null;
+
+        return Result<AnalyticsResponse>.Success(new AnalyticsResponse
+        {
+            PollCode = code,
+            Question = poll.Question,
+            TotalVotes = totalVotes,
+            TopOption = topOption,
+            PeakMinute = peak,
+            Timeline = timeline
+        });
+    }
+
     private async Task<VoteResultsResponse> BuildResultsAsync(string code, PollInfo poll)
     {
+        // OpenText polls aren't tallied — return the submitted text answers instead of option counts.
+        if (string.Equals(poll.Type, "OpenText", StringComparison.OrdinalIgnoreCase))
+        {
+            var answers = await _repo.GetTextAnswersAsync(code);
+            return new VoteResultsResponse
+            {
+                PollCode = code,
+                Question = poll.Question,
+                Type = poll.Type,
+                TotalVotes = answers.Count,
+                IsActive = poll.IsActive,
+                TextAnswers = answers
+            };
+        }
+
         var voteCounts = await _repo.GetVoteCountsAsync(code);
         var totalVotes = voteCounts.Sum(vc => vc.Count);
 
@@ -78,6 +149,7 @@ public class VoteService
         {
             PollCode = code,
             Question = poll.Question,
+            Type = poll.Type,
             TotalVotes = totalVotes,
             IsActive = poll.IsActive,
             Options = poll.Options

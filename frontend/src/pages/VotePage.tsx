@@ -2,6 +2,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { usePollInfo } from '../hooks/usePollInfo';
 import { useVote } from '../hooks/useVote';
 import { VoteForm } from '../components/VoteForm';
+import { QandAPanel } from '../components/QandAPanel';
 
 export function VotePage() {
   const { code = '' } = useParams<{ code: string }>();
@@ -12,8 +13,8 @@ export function VotePage() {
   if (pollLoading) return <p className="page">Loading…</p>;
   if (notFound || !poll) return <p className="page">Poll not found.</p>;
 
-  const handleVote = async (optionIndex: number) => {
-    const result = await vote(optionIndex);
+  const handleVote = async (optionIndex: number, textAnswer?: string) => {
+    const result = await vote(optionIndex, textAnswer);
     if (result) navigate(`/poll/${code}/results`);
   };
 
@@ -28,6 +29,7 @@ export function VotePage() {
       ) : (
         <>
           <VoteForm
+            type={poll.type}
             options={poll.options}
             onVote={handleVote}
             disabled={voteLoading || !poll.isActive}
@@ -35,6 +37,7 @@ export function VotePage() {
           {error && <p className="error">{error}</p>}
         </>
       )}
+      <QandAPanel code={code} />
     </div>
   );
 }

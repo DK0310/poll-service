@@ -18,30 +18,55 @@ public class PollService
     {
         if (string.IsNullOrWhiteSpace(request.Question))
             return Result<PollResponse>.Failure("Question is required");
-        if (request.Options is null || request.Options.Count < 2)
-            return Result<PollResponse>.Failure("At least 2 options are required");
-        if (request.Options.Count > 6)
-            return Result<PollResponse>.Failure("Maximum 6 options allowed");
-        if (request.Options.Any(string.IsNullOrWhiteSpace))
-            return Result<PollResponse>.Failure("Option text cannot be empty");
+
+        if (!Enum.TryParse<PollQuestionType>(request.Type, ignoreCase: true, out var type))
+            return Result<PollResponse>.Failure("Invalid question type");
+
+        // Options depend on the question type: SingleChoice uses the creator's options;
+        // YesNo and Rating are server-generated; OpenText has no options.
+        var optionsResult = BuildOptionTexts(type, request.Options);
+        if (!optionsResult.IsSuccess)
+            return Result<PollResponse>.Failure(optionsResult.Error!);
 
         var code = await GenerateUniqueCodeAsync();
         var poll = new Poll
         {
             Code = code,
             Question = request.Question.Trim(),
+            Type = type,
             Status = PollStatus.Open,
             CreatorId = creatorId,
             ExpiresAt = request.ExpiryHours.HasValue
                 ? DateTime.UtcNow.AddHours(request.ExpiryHours.Value)
                 : null,
-            Options = request.Options
-                .Select((text, i) => new PollOption { OptionIndex = i, Text = text.Trim() })
+            Options = optionsResult.Value!
+                .Select((text, i) => new PollOption { OptionIndex = i, Text = text })
                 .ToList()
         };
 
         await _repo.AddAsync(poll);
         return Result<PollResponse>.Success(PollResponse.From(poll));
+    }
+
+    private static Result<List<string>> BuildOptionTexts(PollQuestionType type, List<string>? options)
+    {
+        switch (type)
+        {
+            case PollQuestionType.YesNo:
+                return Result<List<string>>.Success(["Yes", "No"]);
+            case PollQuestionType.Rating:
+                return Result<List<string>>.Success(["1", "2", "3", "4", "5"]);
+            case PollQuestionType.OpenText:
+                return Result<List<string>>.Success([]);
+            default: // SingleChoice
+                if (options is null || options.Count < 2)
+                    return Result<List<string>>.Failure("At least 2 options are required");
+                if (options.Count > 6)
+                    return Result<List<string>>.Failure("Maximum 6 options allowed");
+                if (options.Any(string.IsNullOrWhiteSpace))
+                    return Result<List<string>>.Failure("Option text cannot be empty");
+                return Result<List<string>>.Success(options.Select(o => o.Trim()).ToList());
+        }
     }
 
     public async Task<Result<PollResponse>> GetByCodeAsync(string code)
@@ -78,6 +103,23 @@ public class PollService
     {
         var polls = await _repo.GetByCreatorAsync(userId);
         return polls.Select(PollResponse.From);
+    }
+
+    /// <summary>
+    /// Closes every poll whose expiry has passed (called by the background cleanup service).
+    /// Returns the number of polls closed.
+    /// </summary>
+    public async Task<int> CloseExpiredPollsAsync()
+    {
+        var expired = await _repo.GetExpiredAsync();
+        var count = 0;
+        foreach (var poll in expired)
+        {
+            poll.Status = PollStatus.Closed;
+            await _repo.UpdateAsync(poll);
+            count++;
+        }
+        return count;
     }
 
     private async Task<string> GenerateUniqueCodeAsync()

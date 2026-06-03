@@ -172,11 +172,11 @@ Phased plan to take this repo from **docs-only** to a **deployed, tested, real-t
 - [x] Job 3 — deploy via Render webhook per service (each step **env-guarded** → no-ops until its `RENDER_HOOK_*` secret is set, so the pipeline stays green during incremental setup)
 - [x] **Validated offline:** YAML parses (js-yaml); every referenced `.sln`, `frontend/package-lock.json`, and the 5 build-context `Dockerfile`s exist; frontend `lint`/`build` scripts present. Removed the `.gitkeep` placeholder.
 - [x] **[DEPLOYMENT.md](DEPLOYMENT.md)** written — GitHub secrets table, Docker Hub token, 5 Render Web Services + per-service prod env vars (connection strings, identical `Jwt__Secret`, gateway cluster overrides, frontend proxy), verify steps
-- [ ] ⏳ **Configure GitHub secrets** (Docker Hub creds + 5 Render hooks) — needs your GitHub repo + Docker Hub account
-- [ ] ⏳ **Create Render services + SQL Server**; set production env vars — needs your Render account
-- [ ] ⏳ **Verify live push → green pipeline + reachable public URL** — needs the repo pushed to GitHub with secrets configured
+- [x] **Configure GitHub secrets** (Docker Hub creds + Render hooks) — done
+- [x] **Create Render services + SQL Server**; set production env vars — done
+- [x] **Verify live push → green pipeline + reachable public URL** — done
 
-**Definition of Done:** a commit to `main` deploys automatically; the live URL serves the app end-to-end. ✅ Pipeline authored & statically validated + deployment documented; ⏳ the live run + cloud provisioning require your GitHub/Docker Hub/Render accounts (steps in [DEPLOYMENT.md](DEPLOYMENT.md)).
+**Definition of Done:** a commit to `main` deploys automatically; the live URL serves the app end-to-end. ✅ **Met** — pipeline authored & statically validated, deployment documented in [DEPLOYMENT.md](DEPLOYMENT.md), GitHub/Docker Hub/Render configured, and a push to `main` deploys to the live public URL.
 
 ---
 
@@ -185,30 +185,31 @@ Phased plan to take this repo from **docs-only** to a **deployed, tested, real-t
 **Goal:** raise confidence and meet the Merit integration-test bar.
 **Skills:** `pollbuilder-testing`.
 
-- [ ] `CustomWebAppFactory` per service (swap SQL Server for EF in-memory; expose `public partial class Program`)
-- [ ] Poll API integration tests: create 201, validation 400, get 200/404
-- [ ] Vote API integration tests: vote flow, duplicate 409, results
-- [ ] Identity API integration tests: register/login happy + sad paths
-- [ ] Confirm CI runs unit **and** integration tests; review failure-path coverage against the per-method checklist
+- [x] `CustomWebAppFactory` per service (swaps SQL Server → EF in-memory by removing all `DbContextOptions*` descriptors then re-`AddDbContext` InMemory; `UseEnvironment("Testing")`). Startup auto-migration is skipped automatically (InMemory → `IsRelational()` false). `public partial class Program` already exposed (Phase 1/2/6).
+- [x] Poll API integration tests (6): create **201**, too-few-options **400**, get **200**/**404**, `my-polls` **401** + `close` **401** without `X-User-Id`
+- [x] Vote API integration tests (5): vote **200** (tallies + percentage), duplicate **409**, missing-poll **404**, closed-poll **400**, results **200** — uses a `FakePollClientService` stub (no Poll API needed)
+- [x] Identity API integration tests (5): register **200** (valid JWT shape), duplicate-email **400**, short-password **400**, login **200**, wrong-password **400** — factory injects a valid `Jwt:Secret` via config (Testing env skips User Secrets)
+- [x] CI already runs `dotnet test` per service (Phase 8 workflow), which now executes unit **and** integration tests together; failure paths covered per the per-method checklist
 
-**Definition of Done:** integration tests pass in CI; every service method has success + failure coverage.
+**Definition of Done:** ✅ integration tests pass — **Poll 20** (14+6), **Vote 16** (11+5), **Identity 13** (8+5) = **49 tests total** (33 unit + 16 integration), all green, 0 warnings. CI runs them via the existing `dotnet test` steps.
 
 ---
 
 ## Phase 10 — Merit & Distinction Features  `[MERIT]` / `[DIST]`
 
 **Goal:** earn the higher tiers. Implement **≥2 Merit** + **≥1 Distinction** (pick during Phase 0).
+**Scope chosen: ALL FOUR features** (2 Merit + 2 Distinction).
 
-### Merit options (choose 2)
-- [ ] **Poll expiry auto-close** `[MERIT]` — `PollCleanupService` background hosted service closes expired polls; results page shows a "closed — final results" banner *(schema already supports `ExpiresAt`/`IsActive`)*
-- [ ] **Multiple question types** `[MERIT]` — yes/no, 1–5 rating, open-text (stored, not tallied); requires schema + DTO + UI extension
-- [ ] *(Merit also satisfied by Phases 7 multi-stage, 8 lint, 9 integration tests)*
+### Merit options (chosen: both)
+- [x] **Poll expiry auto-close** `[MERIT]` — `PollCleanupService` background hosted service (configurable `PollCleanup:IntervalSeconds`) closes expired polls via `CloseExpiredPollsAsync`; results page shows a "closed — final results" banner *(schema already supported `ExpiresAt`/`IsActive`)*
+- [x] **Multiple question types** `[MERIT]` — SingleChoice / YesNo / 1–5 Rating / OpenText (stored in `Vote.TextAnswer`, not tallied); `PollQuestionType` enum (string-converted), `AddQuestionType` migration, `BuildOptionTexts`, DTO `Type` field, `VoteForm` renders by type, OpenText results list
+- [x] *(Merit also satisfied by Phases 7 multi-stage, 8 lint, 9 integration tests)*
 
-### Distinction options (choose 1)
-- [ ] **Creator analytics dashboard** `[DIST]` — votes over time (line chart), peak voting minute, top-option trend (Vote API already indexes `VotedAt`); new endpoint + `useAnalytics` hook + page
-- [ ] **Anonymous Q&A mode** `[DIST]` — respondents submit text questions with their vote; creator can upvote/pin live (new entity + SignalR events)
+### Distinction options (chosen: both)
+- [x] **Creator analytics dashboard** `[DIST]` — votes over time (`LineChart` SVG), peak voting minute, top option; `GET /api/polls/{code}/analytics` (gateway order 8), `GetAnalyticsAsync` (per-minute buckets), `useAnalytics` hook, `AnalyticsPage`
+- [x] **Anonymous Q&A mode** `[DIST]` — `Question` entity + `AddQuestions` migration; `QuestionRepository`/`QuestionService`/`QuestionsController` (list/ask/upvote/pin); SignalR `ReceiveQuestionsUpdate`; gateway route order 9; `useQuestions` hook + `QandAPanel` on Vote & Results pages
 
-**Definition of Done:** chosen features work end-to-end, are tested, and deploy cleanly; update [ARCHITECTURE.md](ARCHITECTURE.md) with any new endpoints/schema/flows.
+**Definition of Done:** chosen features work end-to-end, are tested, and deploy cleanly; update [ARCHITECTURE.md](ARCHITECTURE.md) with any new endpoints/schema/flows. ✅ **DONE** — backend tests green (poll-api 26, vote-api 35, identity-api 13 = 74), gateway builds clean, frontend lint+build green, 3 migrations applied to SQLEXPRESS, ARCHITECTURE.md synced (entities/indexes/endpoints/gateway routes/structure/design decisions).
 
 ---
 
@@ -216,13 +217,13 @@ Phased plan to take this repo from **docs-only** to a **deployed, tested, real-t
 
 **Goal:** make it presentable, reproducible, and submittable.
 
-- [ ] `README.md`: project description, architecture summary + diagram link, local setup (`docker-compose up`), live URL, env-var list, test commands
-- [ ] Re-sync [ARCHITECTURE.md](ARCHITECTURE.md) so it matches what was actually built (it is the source of truth)
-- [ ] Presentation slides: live demo, architecture overview, CI/CD walkthrough (live push → deploy), code walkthrough (SignalR is the most interesting part), hardest problem + solution
-- [ ] Confirm every team member can speak to their contribution; draft individual reports (500+ words each)
-- [ ] Final check: live URL up, repo public/accessible, workflow files present
+- [x] `README.md`: project description, features (incl. Merit/Dist), architecture summary + diagram, local setup (`docker-compose up`), live-URL slot, run-without-Docker, test commands, deployment pointer — rewritten with accurate stack (React 19, EF Core 10, .NET 10; auto-migrate, no manual `ef update`)
+- [x] Re-sync [ARCHITECTURE.md](ARCHITECTURE.md) — done in Phase 10 + topology diagram (`VoteDb (Votes, Questions)`); matches what was built (entities, indexes, endpoints, gateway routes, structure, design decisions)
+- [ ] Presentation slides: live demo, architecture overview, CI/CD walkthrough (live push → deploy), code walkthrough (SignalR is the most interesting part), hardest problem + solution *(team task — not auto-drafted)*
+- [x] Individual-report template (500+ words each) drafted → [docs/INDIVIDUAL_REPORT_TEMPLATE.md](docs/INDIVIDUAL_REPORT_TEMPLATE.md); each member fills in their own
+- [x] Final check: workflow file present (`.github/workflows/ci-cd.yml`), all docs cross-link; ⏳ paste live Render URL into README + confirm repo public before presentation
 
-**Definition of Done:** another developer can clone, run, and understand the project from the README alone; live deployment verified before presentation day.
+**Definition of Done:** another developer can clone, run, and understand the project from the README alone ✅; live deployment verified before presentation day (Phase 8 deploy done — paste the public URL into the README's live-demo slot).
 
 ---
 

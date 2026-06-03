@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
+import type { QuestionType } from '../types/poll.types';
 
 interface PollFormProps {
-  onSubmit: (question: string, options: string[], expiryHours?: number) => void;
+  onSubmit: (question: string, type: QuestionType, options: string[], expiryHours?: number) => void;
   disabled?: boolean;
 }
 
@@ -10,24 +11,27 @@ const MIN_OPTIONS = 2;
 
 export function PollForm({ onSubmit, disabled }: PollFormProps) {
   const [question, setQuestion] = useState('');
+  const [type, setType] = useState<QuestionType>('SingleChoice');
   const [options, setOptions] = useState(['', '']);
   const [expiryHours, setExpiryHours] = useState<number | undefined>();
+
+  // Only SingleChoice needs creator-defined options; YesNo/Rating are auto, OpenText has none.
+  const needsOptions = type === 'SingleChoice';
 
   const addOption = () => {
     if (options.length < MAX_OPTIONS) setOptions([...options, '']);
   };
-
   const removeOption = (index: number) => {
     if (options.length > MIN_OPTIONS) setOptions(options.filter((_, i) => i !== index));
   };
-
   const updateOption = (index: number, text: string) => {
     setOptions(options.map((o, i) => (i === index ? text : o)));
   };
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    onSubmit(question, options.map((o) => o.trim()).filter((o) => o), expiryHours);
+    const opts = needsOptions ? options.map((o) => o.trim()).filter((o) => o) : [];
+    onSubmit(question, type, opts, expiryHours);
   };
 
   return (
@@ -46,36 +50,54 @@ export function PollForm({ onSubmit, disabled }: PollFormProps) {
       </div>
 
       <div className="form-group">
-        <label>Answer Options</label>
-        {options.map((opt, i) => (
-          <div key={i} className="option-row">
-            <input
-              type="text"
-              value={opt}
-              onChange={(e) => updateOption(i, e.target.value)}
-              placeholder={`Option ${i + 1}`}
-              disabled={disabled}
-              required
-            />
-            {options.length > MIN_OPTIONS && (
-              <button
-                type="button"
-                onClick={() => removeOption(i)}
-                className="btn-remove"
-                disabled={disabled}
-                aria-label={`Remove option ${i + 1}`}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        ))}
-        {options.length < MAX_OPTIONS && (
-          <button type="button" onClick={addOption} className="btn-add-option" disabled={disabled}>
-            + Add Option
-          </button>
-        )}
+        <label htmlFor="type">Question Type</label>
+        <select
+          id="type"
+          value={type}
+          onChange={(e) => setType(e.target.value as QuestionType)}
+          disabled={disabled}
+        >
+          <option value="SingleChoice">Multiple choice</option>
+          <option value="YesNo">Yes / No</option>
+          <option value="Rating">Rating (1–5)</option>
+          <option value="OpenText">Open text answer</option>
+        </select>
       </div>
+
+      {needsOptions && (
+        <div className="form-group">
+          <label>Answer Options</label>
+          {options.map((opt, i) => (
+            <div key={i} className="option-row">
+              <input
+                type="text"
+                value={opt}
+                onChange={(e) => updateOption(i, e.target.value)}
+                placeholder={`Option ${i + 1}`}
+                disabled={disabled}
+                required
+              />
+              {options.length > MIN_OPTIONS && (
+                <button type="button" onClick={() => removeOption(i)} className="btn-remove"
+                  disabled={disabled} aria-label={`Remove option ${i + 1}`}>✕</button>
+              )}
+            </div>
+          ))}
+          {options.length < MAX_OPTIONS && (
+            <button type="button" onClick={addOption} className="btn-add-option" disabled={disabled}>
+              + Add Option
+            </button>
+          )}
+        </div>
+      )}
+
+      {!needsOptions && (
+        <p className="muted">
+          {type === 'YesNo' && 'Voters choose Yes or No.'}
+          {type === 'Rating' && 'Voters pick a rating from 1 to 5.'}
+          {type === 'OpenText' && 'Voters submit a free-text answer (collected, not tallied).'}
+        </p>
+      )}
 
       <div className="form-group">
         <label htmlFor="expiry">Expiry (optional)</label>

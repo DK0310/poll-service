@@ -22,6 +22,7 @@ export function PollCard({ poll, onClose, onDelete, busy }: PollCardProps) {
       </p>
       <div className="poll-card-actions">
         <Link to={`/poll/${poll.code}/results`}>Results</Link>
+        <Link to={`/poll/${poll.code}/analytics`}>Analytics</Link>
         <Link to={`/poll/${poll.code}`}>Vote</Link>
         {poll.isActive && (
           <button type="button" className="btn-link" onClick={() => onClose(poll.code)} disabled={busy}>

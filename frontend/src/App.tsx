@@ -3,6 +3,7 @@ import { BrowserRouter, Link, Route, Routes, useNavigate } from 'react-router-do
 import { CreatePollPage } from './pages/CreatePollPage';
 import { VotePage } from './pages/VotePage';
 import { ResultsPage } from './pages/ResultsPage';
+import { AnalyticsPage } from './pages/AnalyticsPage';
 import { MyPollsPage } from './pages/MyPollsPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="/" element={<CreatePollPage />} />
           <Route path="/poll/:code" element={<VotePage />} />
           <Route path="/poll/:code/results" element={<ResultsPage />} />
+          <Route path="/poll/:code/analytics" element={<AnalyticsPage />} />
           <Route path="/my-polls" element={<MyPollsPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />

@@ -17,12 +17,13 @@ export function useVote(pollCode: string) {
   const [error, setError] = useState<string | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
 
-  const vote = async (optionIndex: number): Promise<VoteResults | null> => {
+  const vote = async (optionIndex: number, textAnswer?: string): Promise<VoteResults | null> => {
     setLoading(true);
     setError(null);
     try {
       const { data } = await api.post<VoteResults>(`/polls/${pollCode}/vote`, {
         optionIndex,
+        textAnswer,
         voterToken: getVoterToken(),
       });
       setHasVoted(true);

@@ -12,6 +12,7 @@ public record PollResponse
 {
     public string Code { get; init; } = "";
     public string Question { get; init; } = "";
+    public string Type { get; init; } = "";
     public string Status { get; init; } = "";
     public DateTime CreatedAt { get; init; }
     public DateTime? ExpiresAt { get; init; }
@@ -23,6 +24,7 @@ public record PollResponse
     {
         Code = e.Code,
         Question = e.Question,
+        Type = e.Type.ToString(),
         Status = e.Status.ToString(),
         CreatedAt = e.CreatedAt,
         ExpiresAt = e.ExpiresAt,

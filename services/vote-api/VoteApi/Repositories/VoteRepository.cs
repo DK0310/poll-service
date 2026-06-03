@@ -29,6 +29,22 @@ public class VoteRepository
             .GroupBy(v => v.OptionIndex)
             .Select(g => new VoteCount { OptionIndex = g.Key, Count = g.Count() })
             .ToListAsync();
+
+    /// <summary>Ordered vote timestamps for analytics (votes-over-time / peak minute). Uses the VotedAt index.</summary>
+    public virtual async Task<List<DateTime>> GetVoteTimestampsAsync(string pollCode)
+        => await _db.Votes
+            .Where(v => v.PollCode == pollCode)
+            .OrderBy(v => v.VotedAt)
+            .Select(v => v.VotedAt)
+            .ToListAsync();
+
+    /// <summary>Free-text answers for an OpenText poll, oldest first.</summary>
+    public virtual async Task<List<string>> GetTextAnswersAsync(string pollCode)
+        => await _db.Votes
+            .Where(v => v.PollCode == pollCode && v.TextAnswer != null)
+            .OrderBy(v => v.VotedAt)
+            .Select(v => v.TextAnswer!)
+            .ToListAsync();
 }
 
 public class VoteCount

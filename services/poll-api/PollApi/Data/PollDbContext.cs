@@ -20,6 +20,7 @@ public class PollDbContext : DbContext
             e.Property(p => p.Code).HasMaxLength(16).IsRequired();
             e.HasIndex(p => p.Code).IsUnique();                 // primary lookup
             e.Property(p => p.Question).HasMaxLength(500).IsRequired();
+            e.Property(p => p.Type).HasConversion<string>().HasMaxLength(20);
             e.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
             e.Property(p => p.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
             e.HasIndex(p => p.CreatorId);                        // "my polls" query

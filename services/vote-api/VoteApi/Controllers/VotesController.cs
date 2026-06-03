@@ -35,4 +35,15 @@ public class VotesController : ControllerBase
             ? Ok(result.Value)
             : NotFound(new { error = result.Error });
     }
+
+    // ── GET /api/polls/{code}/analytics ─────────────────────────
+    [HttpGet("{code}/analytics")]
+    public async Task<IActionResult> Analytics(string code)
+    {
+        var result = await _service.GetAnalyticsAsync(code);
+        return result.IsSuccess
+            ? Ok(result.Value)
+            : NotFound(new { error = result.Error });
+    }
 }
+

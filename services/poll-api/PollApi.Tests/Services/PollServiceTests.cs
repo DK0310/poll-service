@@ -95,6 +95,54 @@ public class PollServiceTests
         Assert.Contains("empty", result.Error!, StringComparison.OrdinalIgnoreCase);
     }
 
+    // ── Create: question types (Merit) ──────────────────────────
+
+    [Fact]
+    public async Task Create_YesNo_GeneratesYesNoOptions()
+    {
+        _repo.Setup(r => r.GetByCodeAsync(It.IsAny<string>())).ReturnsAsync((Poll?)null);
+
+        var result = await _sut.CreateAsync(new CreatePollRequest { Question = "Agree?", Type = "YesNo" }, null);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("YesNo", result.Value!.Type);
+        Assert.Equal(new[] { "Yes", "No" }, result.Value.Options.Select(o => o.Text).ToArray());
+    }
+
+    [Fact]
+    public async Task Create_Rating_GeneratesFiveOptions()
+    {
+        _repo.Setup(r => r.GetByCodeAsync(It.IsAny<string>())).ReturnsAsync((Poll?)null);
+
+        var result = await _sut.CreateAsync(new CreatePollRequest { Question = "Rate it", Type = "Rating" }, null);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(5, result.Value!.Options.Count);
+        Assert.Equal("5", result.Value.Options[4].Text);
+    }
+
+    [Fact]
+    public async Task Create_OpenText_HasNoOptions()
+    {
+        _repo.Setup(r => r.GetByCodeAsync(It.IsAny<string>())).ReturnsAsync((Poll?)null);
+
+        var result = await _sut.CreateAsync(new CreatePollRequest { Question = "Thoughts?", Type = "OpenText" }, null);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("OpenText", result.Value!.Type);
+        Assert.Empty(result.Value.Options);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsFailure_WhenInvalidType()
+    {
+        var result = await _sut.CreateAsync(
+            new CreatePollRequest { Question = "Q", Type = "Bogus", Options = new() { "a", "b" } }, null);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("type", result.Error!, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ── GetByCode ───────────────────────────────────────────────
 
     [Fact]
@@ -208,5 +256,35 @@ public class PollServiceTests
         var result = await _sut.DeleteAsync("nope1", Guid.NewGuid());
 
         Assert.False(result.IsSuccess);
+    }
+
+    // ── Expiry auto-close (Merit) ───────────────────────────────
+
+    [Fact]
+    public async Task CloseExpiredPolls_ClosesAllExpired_AndReturnsCount()
+    {
+        var expired = new List<Poll>
+        {
+            new() { Code = "exp01", Status = PollStatus.Open },
+            new() { Code = "exp02", Status = PollStatus.Open }
+        };
+        _repo.Setup(r => r.GetExpiredAsync()).ReturnsAsync(expired);
+
+        var count = await _sut.CloseExpiredPollsAsync();
+
+        Assert.Equal(2, count);
+        Assert.All(expired, p => Assert.Equal(PollStatus.Closed, p.Status));
+        _repo.Verify(r => r.UpdateAsync(It.IsAny<Poll>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task CloseExpiredPolls_ReturnsZero_WhenNoneExpired()
+    {
+        _repo.Setup(r => r.GetExpiredAsync()).ReturnsAsync(new List<Poll>());
+
+        var count = await _sut.CloseExpiredPollsAsync();
+
+        Assert.Equal(0, count);
+        _repo.Verify(r => r.UpdateAsync(It.IsAny<Poll>()), Times.Never);
     }
 }

@@ -6,11 +6,20 @@ public enum PollStatus
     Closed
 }
 
+public enum PollQuestionType
+{
+    SingleChoice, // 2–6 creator-defined options
+    YesNo,        // options auto-set to Yes / No
+    Rating,       // options auto-set to 1–5
+    OpenText      // no options; voters submit free text (stored, not tallied)
+}
+
 public class Poll
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Code { get; set; } = "";
     public string Question { get; set; } = "";
+    public PollQuestionType Type { get; set; } = PollQuestionType.SingleChoice;
     public PollStatus Status { get; set; } = PollStatus.Open;
     public DateTime? ExpiresAt { get; set; }
 
