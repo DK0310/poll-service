@@ -62,11 +62,14 @@ public class VoteEndpointTests : IClassFixture<CustomWebAppFactory>
     }
 
     [Fact]
-    public async Task Analytics_Returns200_AfterVote()
+    public async Task Analytics_Returns200_AfterVote_ForOwner()
     {
         await _client.PostAsJsonAsync("/api/polls/ana1/vote", Vote(0, "analytics-voter"));
 
-        var res = await _client.GetAsync("/api/polls/ana1/analytics");
+        var req = new HttpRequestMessage(HttpMethod.Get, "/api/polls/ana1/analytics");
+        req.Headers.Add("X-User-Id", FakePollClientService.OwnerId.ToString()); // poll owner
+
+        var res = await _client.SendAsync(req);
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
@@ -75,9 +78,23 @@ public class VoteEndpointTests : IClassFixture<CustomWebAppFactory>
     }
 
     [Fact]
+    public async Task Analytics_Returns403_WhenNotOwnerNorAdmin()
+    {
+        var req = new HttpRequestMessage(HttpMethod.Get, "/api/polls/ana2/analytics");
+        req.Headers.Add("X-User-Id", "99999999-9999-9999-9999-999999999999"); // not the owner
+
+        var res = await _client.SendAsync(req);
+
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
+    }
+
+    [Fact]
     public async Task Analytics_Returns404_WhenMissing()
     {
-        var res = await _client.GetAsync("/api/polls/nope1/analytics");
+        var req = new HttpRequestMessage(HttpMethod.Get, "/api/polls/nope1/analytics");
+        req.Headers.Add("X-User-Role", "Admin"); // admin, but poll doesn't exist → 404
+
+        var res = await _client.SendAsync(req);
 
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
     }

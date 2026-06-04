@@ -258,6 +258,46 @@ public class PollServiceTests
         Assert.False(result.IsSuccess);
     }
 
+    // ── Admin bypass (RBAC) ─────────────────────────────────────
+
+    [Fact]
+    public async Task Close_ReturnsSuccess_WhenAdmin_EvenIfNotCreator()
+    {
+        var poll = new Poll { Code = "adm01", Status = PollStatus.Open, CreatorId = Guid.NewGuid() };
+        _repo.Setup(r => r.GetByCodeAsync("adm01")).ReturnsAsync(poll);
+
+        var result = await _sut.CloseAsync("adm01", Guid.NewGuid(), isAdmin: true);
+
+        Assert.True(result.IsSuccess);
+        _repo.Verify(r => r.UpdateAsync(poll), Times.Once);
+    }
+
+    [Fact]
+    public async Task Delete_ReturnsSuccess_WhenAdmin_EvenIfNotCreator()
+    {
+        var poll = new Poll { Code = "adm02", CreatorId = Guid.NewGuid() };
+        _repo.Setup(r => r.GetByCodeAsync("adm02")).ReturnsAsync(poll);
+
+        var result = await _sut.DeleteAsync("adm02", Guid.NewGuid(), isAdmin: true);
+
+        Assert.True(result.IsSuccess);
+        _repo.Verify(r => r.DeleteAsync(poll), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetAll_ReturnsEveryPoll()
+    {
+        _repo.Setup(r => r.GetAllAsync(It.IsAny<int>())).ReturnsAsync(new List<Poll>
+        {
+            new() { Code = "all01", Question = "Q1" },
+            new() { Code = "all02", Question = "Q2" }
+        });
+
+        var result = await _sut.GetAllAsync();
+
+        Assert.Equal(2, result.Count());
+    }
+
     // ── Expiry auto-close (Merit) ───────────────────────────────
 
     [Fact]

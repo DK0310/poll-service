@@ -9,6 +9,7 @@ public class VoteDbContext : DbContext
 
     public DbSet<Vote> Votes => Set<Vote>();
     public DbSet<Question> Questions => Set<Question>();
+    public DbSet<QuestionUpvote> QuestionUpvotes => Set<QuestionUpvote>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -21,6 +22,17 @@ public class VoteDbContext : DbContext
             e.Property(q => q.Text).HasMaxLength(1000).IsRequired();
             e.Property(q => q.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
             e.HasIndex(q => q.PollCode);   // list questions for a poll
+        });
+
+        b.Entity<QuestionUpvote>(e =>
+        {
+            e.ToTable("QuestionUpvotes");
+            e.HasKey(u => u.Id);
+            e.Property(u => u.Id).HasDefaultValueSql("NEWID()");
+            e.Property(u => u.VoterKey).HasMaxLength(128).IsRequired();
+            e.Property(u => u.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            // One upvote per voter per question (RBAC dedup).
+            e.HasIndex(u => new { u.QuestionId, u.VoterKey }).IsUnique();
         });
 
         b.Entity<Vote>(e =>

@@ -38,6 +38,8 @@ Until the Docker Hub secrets exist, the **Build & Push** job fails (expected). U
 ### 4. Provision a SQL Server database
 Create one SQL Server reachable from Render (a managed instance, a SQL container on Render, or an external provider). Note the host, and create/allow the three databases `PollDb`, `VoteDb`, `IdentityDb` (the services auto-create their schema on startup via EF migrations).
 
+> **RBAC migrations apply automatically.** Phase 12 adds `Users.Role` (IdentityDb, `AddUserRole`) and the `QuestionUpvotes` table (VoteDb, `AddQuestionUpvotes`). Both run on the next startup via `Database.MigrateAsync()` — no manual step. After deploy, set `Admin__Emails__0` on identity-api to your account's email and restart it once to be promoted to **Admin**.
+
 ### 5. Create 5 Render Web Services (Docker image deploys)
 For each service, create a Render Web Service that deploys the pushed image `docker.io/<DOCKERHUB_USERNAME>/pollbuilder-<service>:latest`, then copy its **Deploy Hook URL** into the matching GitHub secret (step 3). Set environment variables per service:
 
@@ -45,7 +47,7 @@ For each service, create a Render Web Service that deploys the pushed image `doc
 |---|---|---|
 | poll-api | `pollbuilder-poll-api` | `ConnectionStrings__Default` (PollDb) |
 | vote-api | `pollbuilder-vote-api` | `ConnectionStrings__Default` (VoteDb), `Services__PollApi` (internal poll-api URL), `Gateway__Url` |
-| identity-api | `pollbuilder-identity-api` | `ConnectionStrings__Default` (IdentityDb), `Jwt__Secret` |
+| identity-api | `pollbuilder-identity-api` | `ConnectionStrings__Default` (IdentityDb), `Jwt__Secret`, `Admin__Emails__0` (email to seed as the first **Admin** on startup; add `__1`, `__2`, … for more) |
 | gateway | `pollbuilder-gateway` | `Jwt__Secret` (**identical to identity-api**), `Frontend__Url` (deployed frontend origin), and cluster addresses for poll/vote/identity (override `ReverseProxy__Clusters__*__Destinations__default__Address` to the services' internal Render URLs) |
 | frontend | `pollbuilder-frontend` | none at runtime (the Gateway URL is baked at build time; the image's Nginx proxies `/api` & `/hubs` to the gateway) |
 

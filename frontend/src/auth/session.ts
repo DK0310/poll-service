@@ -21,3 +21,36 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
   window.dispatchEvent(new Event(AUTH_CHANGED));
 }
+
+// ── JWT claims (read-only; the Gateway is the real authority) ────────
+// Decoding the payload is for UX gating only — every protected action is
+// still enforced server-side. Never trust these values for security.
+interface JwtClaims {
+  sub?: string;
+  role?: string;
+}
+
+function decodeClaims(): JwtClaims | null {
+  const token = getToken();
+  const payload = token?.split('.')[1];
+  if (!payload) return null;
+  try {
+    const b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64.padEnd(b64.length + ((4 - (b64.length % 4)) % 4), '=');
+    return JSON.parse(atob(padded)) as JwtClaims;
+  } catch {
+    return null;
+  }
+}
+
+export function getUserId(): string | null {
+  return decodeClaims()?.sub ?? null;
+}
+
+export function getRole(): string | null {
+  return decodeClaims()?.role ?? null;
+}
+
+export function isAdmin(): boolean {
+  return getRole() === 'Admin';
+}

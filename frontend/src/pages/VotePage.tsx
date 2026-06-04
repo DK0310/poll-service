@@ -4,6 +4,7 @@ import { usePollInfo } from '../hooks/usePollInfo';
 import { useVote } from '../hooks/useVote';
 import { VoteForm } from '../components/VoteForm';
 import { QandAPanel } from '../components/QandAPanel';
+import { getUserId, isAdmin } from '../auth/session';
 
 export function VotePage() {
   const { code = '' } = useParams<{ code: string }>();
@@ -37,6 +38,8 @@ export function VotePage() {
     const result = await vote(optionIndex, textAnswer);
     if (result) navigate(`/poll/${code}/results`);
   };
+
+  const canModerate = isAdmin() || (!!poll.creatorId && poll.creatorId === getUserId());
 
   return (
     <div className="page">
@@ -78,7 +81,7 @@ export function VotePage() {
         )}
       </div>
 
-      <QandAPanel code={code} />
+      <QandAPanel code={code} canModerate={canModerate} />
     </div>
   );
 }

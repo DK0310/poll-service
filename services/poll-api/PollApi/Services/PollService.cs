@@ -77,11 +77,12 @@ public class PollService
             : Result<PollResponse>.Success(PollResponse.From(poll));
     }
 
-    public async Task<Result<PollResponse>> CloseAsync(string code, Guid userId)
+    // isAdmin bypasses the creator check (admins moderate any poll).
+    public async Task<Result<PollResponse>> CloseAsync(string code, Guid userId, bool isAdmin = false)
     {
         var poll = await _repo.GetByCodeAsync(code);
         if (poll is null) return Result<PollResponse>.Failure("Poll not found");
-        if (poll.CreatorId != userId) return Result<PollResponse>.Failure("Not the poll creator");
+        if (!isAdmin && poll.CreatorId != userId) return Result<PollResponse>.Failure("Not the poll creator");
         if (poll.IsClosed) return Result<PollResponse>.Failure("Poll is already closed");
 
         poll.Status = PollStatus.Closed;
@@ -89,11 +90,11 @@ public class PollService
         return Result<PollResponse>.Success(PollResponse.From(poll));
     }
 
-    public async Task<Result<bool>> DeleteAsync(string code, Guid userId)
+    public async Task<Result<bool>> DeleteAsync(string code, Guid userId, bool isAdmin = false)
     {
         var poll = await _repo.GetByCodeAsync(code);
         if (poll is null) return Result<bool>.Failure("Poll not found");
-        if (poll.CreatorId != userId) return Result<bool>.Failure("Not the poll creator");
+        if (!isAdmin && poll.CreatorId != userId) return Result<bool>.Failure("Not the poll creator");
 
         await _repo.DeleteAsync(poll);
         return Result<bool>.Success(true);
@@ -102,6 +103,13 @@ public class PollService
     public async Task<IEnumerable<PollResponse>> GetByCreatorAsync(Guid userId)
     {
         var polls = await _repo.GetByCreatorAsync(userId);
+        return polls.Select(PollResponse.From);
+    }
+
+    /// <summary>Every poll, newest first — for the admin dashboard.</summary>
+    public async Task<IEnumerable<PollResponse>> GetAllAsync()
+    {
+        var polls = await _repo.GetAllAsync();
         return polls.Select(PollResponse.From);
     }
 

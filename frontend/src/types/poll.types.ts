@@ -15,6 +15,7 @@ export interface PollInfo {
   createdAt: string; // ISO 8601
   expiresAt: string | null;
   isActive: boolean;
+  creatorId: string | null; // owner id — for ownership-gated UI (analytics link, pin)
   options: PollOption[];
   url: string; // "/poll/{code}"
 }
@@ -46,6 +47,14 @@ export interface VoteResults {
 // ── Auth (Identity API via Gateway) ─────────────────────────
 export interface AuthResponse {
   token: string;
+}
+
+// ── Admin (admin-only, via Gateway) ─────────────────────────
+export interface AdminUser {
+  id: string;
+  email: string;
+  role: string; // "User" | "Admin"
+  createdAt: string;
 }
 
 // ── Analytics (Vote API via Gateway) ────────────────────────

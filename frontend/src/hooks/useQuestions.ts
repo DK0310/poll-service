@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import api from '../api/api';
+import { getVoterToken } from '../auth/voter';
 import type { Question } from '../types/poll.types';
 
 const HUB_URL = import.meta.env.VITE_HUB_URL ?? 'http://localhost:5000/hubs/poll';
@@ -57,7 +58,12 @@ export function useQuestions(pollCode: string) {
   }, [pollCode]);
 
   const submit = (text: string) => api.post(`/polls/${pollCode}/questions`, { text });
-  const upvote = (id: string) => api.post(`/polls/${pollCode}/questions/${id}/upvote`);
+  // Upvote is deduped per person (logged-in: by user id at the gateway; guest: by voter token).
+  // A repeat upvote returns 409 — swallow it quietly (the count simply doesn't change).
+  const upvote = (id: string) =>
+    api
+      .post(`/polls/${pollCode}/questions/${id}/upvote`, { voterToken: getVoterToken() })
+      .catch(() => {});
   const pin = (id: string) => api.post(`/polls/${pollCode}/questions/${id}/pin`);
 
   return { questions, submit, upvote, pin };

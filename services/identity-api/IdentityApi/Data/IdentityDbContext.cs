@@ -19,6 +19,7 @@ public class IdentityDbContext : DbContext
             e.Property(u => u.Email).HasMaxLength(256).IsRequired();
             e.HasIndex(u => u.Email).IsUnique();          // login lookup + uniqueness
             e.Property(u => u.PasswordHash).IsRequired();
+            e.Property(u => u.Role).HasMaxLength(20).IsRequired().HasDefaultValue("User");
             e.Property(u => u.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
         });
     }

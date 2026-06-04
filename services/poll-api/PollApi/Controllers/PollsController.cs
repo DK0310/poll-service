@@ -15,12 +15,9 @@ public class PollsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreatePollRequest request)
     {
-        // CreatorId comes from the X-User-Id header the Gateway sets after JWT validation.
-        // Creation is anonymous-friendly: no header → no creator.
-        Guid? creatorId = Request.Headers.TryGetValue("X-User-Id", out var uid)
-            && Guid.TryParse(uid.ToString(), out var id)
-            ? id
-            : null;
+        // Creating a poll requires a logged-in user (Gateway enforces auth on this route
+        // and sets X-User-Id from the JWT). No header → not authenticated.
+        if (!TryGetUserId(out var creatorId)) return Unauthorized();
 
         var result = await _service.CreateAsync(request, creatorId);
         return result.IsSuccess
@@ -53,7 +50,7 @@ public class PollsController : ControllerBase
     public async Task<IActionResult> Close(string code)
     {
         if (!TryGetUserId(out var userId)) return Unauthorized();
-        var result = await _service.CloseAsync(code, userId);
+        var result = await _service.CloseAsync(code, userId, IsAdmin());
         if (result.IsSuccess) return Ok(result.Value);
         return MapFailure(result.Error!);
     }
@@ -63,7 +60,7 @@ public class PollsController : ControllerBase
     public async Task<IActionResult> Delete(string code)
     {
         if (!TryGetUserId(out var userId)) return Unauthorized();
-        var result = await _service.DeleteAsync(code, userId);
+        var result = await _service.DeleteAsync(code, userId, IsAdmin());
         if (result.IsSuccess) return NoContent();
         return MapFailure(result.Error!);
     }
@@ -75,6 +72,11 @@ public class PollsController : ControllerBase
         return Request.Headers.TryGetValue("X-User-Id", out var value)
             && Guid.TryParse(value.ToString(), out userId);
     }
+
+    /// <summary>True when the Gateway forwarded X-User-Role: Admin (admins bypass ownership).</summary>
+    private bool IsAdmin()
+        => Request.Headers.TryGetValue("X-User-Role", out var role)
+           && role.ToString() == "Admin";
 
     // poll-api has no auth scheme registered (the Gateway validates JWTs), so we return
     // status codes directly rather than Forbid()/Challenge() which require a scheme.

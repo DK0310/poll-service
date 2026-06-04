@@ -36,6 +36,7 @@ public record PollInfo
     public string Question { get; init; } = "";
     public string Type { get; init; } = "SingleChoice";
     public bool IsActive { get; init; }
+    public Guid? CreatorId { get; init; }   // owner — for analytics/pin ownership checks
     public List<PollOptionInfo> Options { get; init; } = new();
 }
 

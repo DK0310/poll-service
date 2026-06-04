@@ -45,7 +45,7 @@ public class QuestionEndpointTests : IClassFixture<CustomWebAppFactory>
     {
         var id = await SubmitAsync("qa3", "Upvote me");
 
-        var res = await _client.PostAsync($"/api/polls/qa3/questions/{id}/upvote", content: null);
+        var res = await _client.PostAsJsonAsync($"/api/polls/qa3/questions/{id}/upvote", new { voterToken = "voter-a" });
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
@@ -53,15 +53,39 @@ public class QuestionEndpointTests : IClassFixture<CustomWebAppFactory>
     }
 
     [Fact]
-    public async Task Pin_Returns200_AndTogglesPinned()
+    public async Task Upvote_Returns409_OnDuplicate_BySameVoter()
+    {
+        var id = await SubmitAsync("qa3b", "Upvote once");
+        await _client.PostAsJsonAsync($"/api/polls/qa3b/questions/{id}/upvote", new { voterToken = "dup-voter" });
+
+        var res = await _client.PostAsJsonAsync($"/api/polls/qa3b/questions/{id}/upvote", new { voterToken = "dup-voter" });
+
+        Assert.Equal(HttpStatusCode.Conflict, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Pin_Returns200_AndTogglesPinned_WhenOwner()
     {
         var id = await SubmitAsync("qa4", "Pin me");
+        var req = new HttpRequestMessage(HttpMethod.Post, $"/api/polls/qa4/questions/{id}/pin");
+        req.Headers.Add("X-User-Id", FakePollClientService.OwnerId.ToString());
 
-        var res = await _client.PostAsync($"/api/polls/qa4/questions/{id}/pin", content: null);
+        var res = await _client.SendAsync(req);
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(body.GetProperty("isPinned").GetBoolean());
+    }
+
+    [Fact]
+    public async Task Pin_Returns403_WhenNotOwnerNorAdmin()
+    {
+        var id = await SubmitAsync("qa4b", "Pin me");
+
+        // No X-User-Id / X-User-Role → not the owner, not admin.
+        var res = await _client.PostAsync($"/api/polls/qa4b/questions/{id}/pin", content: null);
+
+        Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
 
     [Fact]

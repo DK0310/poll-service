@@ -1,12 +1,15 @@
 import { Link, useParams } from 'react-router-dom';
 import { Lock, BarChart3, ArrowRight } from 'lucide-react';
 import { useLiveResults } from '../hooks/useLiveResults';
+import { usePollInfo } from '../hooks/usePollInfo';
 import { LiveBarChart } from '../components/LiveBarChart';
 import { QandAPanel } from '../components/QandAPanel';
+import { getUserId, isAdmin } from '../auth/session';
 
 export function ResultsPage() {
   const { code = '' } = useParams<{ code: string }>();
   const { results, loading, notFound, connected } = useLiveResults(code);
+  const { poll } = usePollInfo(code); // for ownership-gated analytics link
 
   if (loading) {
     return (
@@ -31,6 +34,7 @@ export function ResultsPage() {
   }
 
   const isOpenText = results.type === 'OpenText';
+  const canModerate = isAdmin() || (!!poll?.creatorId && poll.creatorId === getUserId());
 
   return (
     <div className="page">
@@ -70,14 +74,16 @@ export function ResultsPage() {
 
         <div className="results-foot">
           <p className="muted share-hint">Share this page — results update in real time.</p>
-          <Link to={`/poll/${code}/analytics`} className="btn-outline">
-            <BarChart3 size={18} strokeWidth={2.25} aria-hidden="true" /> View analytics
-            <ArrowRight size={16} strokeWidth={2.25} aria-hidden="true" />
-          </Link>
+          {canModerate && (
+            <Link to={`/poll/${code}/analytics`} className="btn-outline">
+              <BarChart3 size={18} strokeWidth={2.25} aria-hidden="true" /> View analytics
+              <ArrowRight size={16} strokeWidth={2.25} aria-hidden="true" />
+            </Link>
+          )}
         </div>
       </div>
 
-      <QandAPanel code={code} />
+      <QandAPanel code={code} canModerate={canModerate} />
     </div>
   );
 }

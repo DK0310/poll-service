@@ -4,9 +4,10 @@ import { useQuestions } from '../hooks/useQuestions';
 
 interface QandAPanelProps {
   code: string;
+  canModerate?: boolean; // poll owner or admin — may pin/unpin
 }
 
-export function QandAPanel({ code }: QandAPanelProps) {
+export function QandAPanel({ code, canModerate = false }: QandAPanelProps) {
   const { questions, submit, upvote, pin } = useQuestions(code);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
@@ -68,9 +69,11 @@ export function QandAPanel({ code }: QandAPanelProps) {
                 )}
                 {q.text}
               </span>
-              <button type="button" className="btn-link qanda__pin" onClick={() => pin(q.id)}>
-                {q.isPinned ? 'Unpin' : 'Pin'}
-              </button>
+              {canModerate && (
+                <button type="button" className="btn-link qanda__pin" onClick={() => pin(q.id)}>
+                  {q.isPinned ? 'Unpin' : 'Pin'}
+                </button>
+              )}
             </li>
           ))}
         </ul>

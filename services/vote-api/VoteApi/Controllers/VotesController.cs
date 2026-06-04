@@ -37,12 +37,19 @@ public class VotesController : ControllerBase
     }
 
     // ── GET /api/polls/{code}/analytics ─────────────────────────
+    // Owner-or-admin only (Gateway requires auth; we enforce ownership here).
     [HttpGet("{code}/analytics")]
     public async Task<IActionResult> Analytics(string code)
     {
-        var result = await _service.GetAnalyticsAsync(code);
-        return result.IsSuccess
-            ? Ok(result.Value)
+        var userId = Request.Headers.TryGetValue("X-User-Id", out var v) && Guid.TryParse(v.ToString(), out var id)
+            ? (Guid?)id
+            : null;
+        var isAdmin = Request.Headers.TryGetValue("X-User-Role", out var role) && role.ToString() == "Admin";
+
+        var result = await _service.GetAnalyticsAsync(code, userId, isAdmin);
+        if (result.IsSuccess) return Ok(result.Value);
+        return result.Error!.Contains("forbidden", StringComparison.OrdinalIgnoreCase)
+            ? StatusCode(StatusCodes.Status403Forbidden, new { error = result.Error })
             : NotFound(new { error = result.Error });
     }
 }

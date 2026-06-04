@@ -1,16 +1,7 @@
 import { useState } from 'react';
 import api, { apiErrorMessage } from '../api/api';
+import { getVoterToken } from '../auth/voter';
 import type { VoteResults } from '../types/poll.types';
-
-// One persistent voter token per browser (no login required for voters).
-function getVoterToken(): string {
-  let token = localStorage.getItem('voter_token');
-  if (!token) {
-    token = crypto.randomUUID();
-    localStorage.setItem('voter_token', token);
-  }
-  return token;
-}
 
 export function useVote(pollCode: string) {
   const [loading, setLoading] = useState(false);

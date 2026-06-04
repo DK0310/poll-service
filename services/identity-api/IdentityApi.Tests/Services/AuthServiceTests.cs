@@ -11,7 +11,9 @@ public class AuthServiceTests
 {
     // AuthService uses the DbContext directly (no repository), so we test it against
     // an in-memory database + in-memory configuration (real BCrypt + real JWT generation).
-    private static AuthService CreateSut()
+    private static AuthService CreateSut() => CreateSutWithDb().sut;
+
+    private static (AuthService sut, IdentityDbContext db) CreateSutWithDb()
     {
         var options = new DbContextOptionsBuilder<IdentityDbContext>()
             .UseInMemoryDatabase("identity_" + Guid.NewGuid())
@@ -23,7 +25,7 @@ public class AuthServiceTests
                 ["Jwt:Secret"] = "test-secret-key-that-is-at-least-32-characters-long!"
             })
             .Build();
-        return new AuthService(db, config);
+        return (new AuthService(db, config), db);
     }
 
     private static RegisterRequest Reg(string email = "a@b.com", string pw = "password1") =>
@@ -44,6 +46,33 @@ public class AuthServiceTests
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
         Assert.Contains(jwt.Claims, c => c.Type == JwtRegisteredClaimNames.Sub);
         Assert.Contains(jwt.Claims, c => c.Type == JwtRegisteredClaimNames.Email && c.Value == "a@b.com");
+    }
+
+    [Fact]
+    public async Task Register_TokenHasRoleUser_ByDefault()
+    {
+        var sut = CreateSut();
+
+        var result = await sut.RegisterAsync(Reg());
+
+        var jwt = new JwtSecurityTokenHandler().ReadJwtToken(result.Value!);
+        Assert.Contains(jwt.Claims, c => c.Type == "role" && c.Value == "User");
+    }
+
+    [Fact]
+    public async Task Login_TokenHasRoleAdmin_WhenUserIsAdmin()
+    {
+        var (sut, db) = CreateSutWithDb();
+        await sut.RegisterAsync(Reg("admin@b.com", "secret123"));
+        var user = await db.Users.FirstAsync(u => u.Email == "admin@b.com");
+        user.Role = "Admin";
+        await db.SaveChangesAsync();
+
+        var result = await sut.LoginAsync(new LoginRequest { Email = "admin@b.com", Password = "secret123" });
+
+        Assert.True(result.IsSuccess);
+        var jwt = new JwtSecurityTokenHandler().ReadJwtToken(result.Value!);
+        Assert.Contains(jwt.Claims, c => c.Type == "role" && c.Value == "Admin");
     }
 
     [Fact]

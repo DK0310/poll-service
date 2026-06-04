@@ -1,14 +1,33 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, ArrowRight, BarChart3 } from 'lucide-react';
+import { Check, ArrowRight, BarChart3, LogIn } from 'lucide-react';
 import { PollForm } from '../components/PollForm';
 import { ShareLink } from '../components/ShareLink';
 import { useCreatePoll } from '../hooks/useCreatePoll';
+import { isAuthenticated } from '../auth/session';
 import type { PollInfo, QuestionType } from '../types/poll.types';
 
 export function CreatePollPage() {
   const { createPoll, loading, error } = useCreatePoll();
   const [result, setResult] = useState<PollInfo | null>(null);
+
+  // Creating a poll requires an account (the API rejects anonymous creates with 401).
+  if (!isAuthenticated()) {
+    return (
+      <div className="page">
+        <div className="card empty-state">
+          <h1>Create a poll</h1>
+          <p className="muted">Log in to create a poll and manage it from your dashboard.</p>
+          <Link to="/login" className="btn">
+            <LogIn size={18} strokeWidth={2.25} aria-hidden="true" /> Log in to create
+          </Link>
+          <p className="muted" style={{ marginTop: 'var(--space-md)' }}>
+            No account? <Link to="/register">Sign up</Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (
     question: string,

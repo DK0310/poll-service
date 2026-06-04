@@ -227,6 +227,110 @@ Phased plan to take this repo from **docs-only** to a **deployed, tested, real-t
 
 ---
 
+## Phase 12 — Role-Based Access Control (Guest / User / Admin)  `[RBAC]`
+
+**Goal:** introduce three roles — **Guest** (no token), **User** (logged in), **Admin** — enforced at the
+**Gateway** (coarse, route-level), **each service** (fine/ownership), and the **frontend** (UX guards;
+defense-in-depth, server still authoritative).
+
+**Decisions locked:**
+- **Create poll** → login required (Guest ❌). · **Creator analytics** → owner + admin only (Guest ❌).
+- **Q&A upvote** → **one per person per question** (Guest by browser token, User by account; **no login required**).
+- **Ask Q&A** → stays open/anonymous (Guest ✅). · **Vote** → unchanged (Guest ✅, browser-token dedup).
+- **Pin/hide Q&A** + **close/delete poll** → owner + admin. · **User mgmt + global dashboard** → admin only.
+
+**Permission matrix**
+
+| Capability | Guest | User | Admin |
+|---|:--:|:--:|:--:|
+| View poll / vote / live results | ✅ | ✅ | ✅ |
+| Ask Q&A (anonymous) · Upvote (1×/person) | ✅ | ✅ | ✅ |
+| Create a poll | ❌ | ✅ | ✅ |
+| View creator analytics | ❌ | ✅ own | ✅ any |
+| My Polls · close · delete · pin/hide | ❌ | ✅ own | ✅ any |
+| Manage users · global dashboard | ❌ | ❌ | ✅ |
+
+**Skills:** `pollbuilder-backend`, `pollbuilder-database`, `pollbuilder-frontend`, `pollbuilder-testing`, `test-driven-development`, `verification-before-completion`.
+
+> **Enforcement model:** JWT gains a `role` claim → Gateway forwards `X-User-Role` (code transform, anti-spoof
+> like `X-User-Id`) → services do owner/admin checks. "Own resource" = `X-User-Id == Poll.CreatorId`; admin = `role==Admin` bypass.
+
+---
+
+### Phase 12.1 — Identity: roles + admin seed  `[RBAC]`  ✅ DONE
+**Goal:** issue role-aware JWTs and bootstrap the first admin.
+- [x] Added `Role` to `User` (default `"User"`); `Role nvarchar(20) NOT NULL default 'User'` via `IdentityDbContext`; migration `AddUserRole` (backfills existing rows → `User`).
+- [x] `AuthService.GenerateToken` adds a `role` claim; register defaults to `User` (model default).
+- [x] Admin bootstrap on startup: promotes emails in `Admin:Emails` (env `Admin__Emails__0…`) to `Admin`, idempotent (promotes existing accounts; guarded by `!EF.IsDesignTime` on migrate).
+- [x] Unit tests: `Register_TokenHasRoleUser_ByDefault`, `Login_TokenHasRoleAdmin_WhenUserIsAdmin` (+ existing).
+- **Files:** `Models/User.cs`, `Data/IdentityDbContext.cs` (+`Migrations/20260604_AddUserRole`), `Services/AuthService.cs`, `Program.cs` (seed + `EF.IsDesignTime` guard), `appsettings.json` (`Admin:Emails: []`), `IdentityApi.Tests/Services/AuthServiceTests.cs`.
+- **DoD:** ✅ `dotnet test` identity green — **15 passed** (13 → 15); a promoted admin's login JWT contains `role=Admin`.
+
+### Phase 12.2 — Gateway: propagate role + policies + routes  `[RBAC]`  ✅ DONE
+**Goal:** forward role; gate routes; require auth where decided.
+- [x] Code transform: strips + sets `X-User-Role` from the `role` claim (alongside `X-User-Id`, same anti-spoof pattern).
+- [x] Added `admin` policy (`RequireAuthenticatedUser().RequireClaim("role","Admin")`).
+- [x] New route `polls-create` → `POST /api/polls` → `authenticated` (Order 10, before the Order-100 catch-all) so **guests can't create**.
+- [x] `vote-analytics` route → now `authenticated`.
+- [x] Admin routes: `admin-polls` (`/api/admin/polls/{**remainder}` → poll-api, `admin`, Order 11), `admin-users` (`/api/admin/users/{**remainder}` → identity-api, `admin`, Order 12).
+- [x] Public unchanged: GET poll, vote, results, questions list/ask/upvote; Dev overrides only cluster addresses (routes inherited).
+- **Files:** `services/gateway/Gateway/Program.cs` (transform + `admin` policy), `appsettings.json` (routes).
+- **DoD:** ✅ gateway builds 0 warnings/0 errors. *(401/403 runtime behaviour exercised in 12.7 integration/E2E.)*
+
+### Phase 12.3 — Poll API: create-auth, owner-or-admin, admin list  `[RBAC]`  ✅ DONE
+- [x] `Create` requires `X-User-Id` (401 if missing) → `CreatorId` always set (removed anonymous create).
+- [x] `Close`/`Delete` take `isAdmin` → succeed for creator **or** `X-User-Role == Admin` (controller reads role via `IsAdmin()`).
+- [x] Added `CreatorId` to `PollResponse` (consumed by Vote API analytics + frontend ownership).
+- [x] Admin: new `AdminPollsController` `GET /api/admin/polls` (re-checks `X-User-Role`, 403 otherwise) + `PollRepository.GetAllAsync` + `PollService.GetAllAsync`.
+- [x] Tests: create-no-user→**401**; admin close non-owner→**200**; admin-list→**200** / no-admin→**403**; service admin-bypass (close/delete) + `GetAll`; updated the Phase 9 create tests to send `X-User-Id` (anonymous create now blocked).
+- **Files:** `Controllers/PollsController.cs` + new `AdminPollsController.cs`, `Services/PollService.cs`, `Repositories/PollRepository.cs`, `DTOs/PollResponse.cs`, `PollApi.Tests/Services/PollServiceTests.cs` + `Integration/PollEndpointTests.cs`.
+- **DoD:** ✅ `dotnet test` poll-api green — **33 passed** (26 → 33); ownership + admin bypass enforced.
+
+### Phase 12.4 — Vote API: analytics gate, upvote dedup, Q&A moderation  `[RBAC]`  ✅ DONE
+- [x] `PollClientService.PollInfo` gained `CreatorId` (read from Poll API's response, added in 12.3).
+- [x] **Analytics** (`GetAnalyticsAsync(code, userId, isAdmin)`) → allow if `userId == CreatorId` or admin, else `Forbidden` → controller maps to **403** (404 when poll missing).
+- [x] **Upvote dedup (Option A):** new `QuestionUpvote { Id, QuestionId, VoterKey }`, unique `(QuestionId, VoterKey)`; migration `AddQuestionUpvotes`. `VoterKey = X-User-Id ?? body.voterToken`. Repeat → **409**; `Upvotes` incremented once per distinct voter.
+- [x] **Pin** restricted to owner + admin (fetches `CreatorId`); added **`DELETE /api/polls/{code}/questions/{id}`** (owner/admin). Ask/list stay open.
+- [x] Tests: upvote 200 / dup 409; analytics owner 200 / non-owner 403 / admin 404-when-missing; pin owner 200 / non-owner 403; service-level owner/admin/forbidden + dedup.
+- **Files:** `Services/PollClientService.cs` (+`CreatorId`), new `Models/QuestionUpvote.cs`, `Data/VoteDbContext.cs` (+config, +`Migrations/20260604_AddQuestionUpvotes`), `Repositories/QuestionRepository.cs` (dedup + delete), `Services/QuestionService.cs` + `VoteService.cs`, `Controllers/QuestionsController.cs` + `VotesController.cs`, `DTOs/QuestionDtos.cs` (+`UpvoteRequest`), `Program.cs` (`EF.IsDesignTime` guard), `VoteApi.Tests/*` (+ `FakePollClientService.OwnerId`).
+- **DoD:** ✅ `dotnet test` vote-api green — **43 passed** (35 → 43); dedup + analytics gate + pin ownership enforced.
+
+### Phase 12.5 — Frontend: role-aware session + guards  `[RBAC]`  ✅ DONE
+- [x] `auth/session`: decode JWT payload (base64url, no dep) → `getUserId()`, `getRole()`, `isAdmin()`.
+- [x] Role read via session helpers in guards/pages (no change to the action-only `useAuth`); new shared `auth/voter.ts` (`getVoterToken`) reused by `useVote` + `useQuestions`.
+- [x] `RequireAuth` + `RequireAdmin` route wrappers (redirect guests → `/login`, non-admins → `/`); `RequireAuth` wraps `/my-polls` (RequireAdmin used by `/admin` in 12.6).
+- [x] Create guarded: guests get a **"log in to create"** CTA card (in-page; `/` stays reachable).
+- [x] `PollInfo` type +`creatorId`; `canModerate = isAdmin() || creatorId===getUserId()` → **Pin** (QandAPanel) + **analytics link** (ResultsPage) only for owner/admin; ResultsPage fetches poll for ownership.
+- [x] Upvote sends `voterToken` and **swallows 409** quietly.
+- **Files:** `src/auth/session.ts`, new `src/auth/voter.ts`, new `src/components/RequireAuth.tsx` + `RequireAdmin.tsx`, `src/App.tsx`, `src/pages/CreatePollPage.tsx` + `ResultsPage.tsx` + `VotePage.tsx`, `src/components/QandAPanel.tsx`, `src/hooks/useQuestions.ts` + `useVote.ts`, `src/types/poll.types.ts`.
+- **DoD:** ✅ `npm run lint` clean + `npm run build` green (620ms); guests see no Create form / analytics link / pin; owners/admins do; upvote dedups.
+
+### Phase 12.6 — Admin dashboard (frontend) + identity admin-users API  `[RBAC]`  ✅ DONE
+- [x] **Backend (identity):** new `AdminService` (list / setRole / deleteUser; blocks self role-change & self-delete) + `AdminUsersController` (`GET /api/admin/users`, `POST .../{id}/role`, `DELETE .../{id}`; re-checks `X-User-Role`) + `AdminUserResponse`/`SetRoleRequest` DTOs + DI. *(The gateway already routed `/api/admin/users` in 12.2; this fills in the missing controller.)*
+- [x] `AdminDashboardPage` (`/admin`, wrapped in `RequireAdmin`): **all polls** (close/delete any) + **users** (list, promote/demote, delete) on glass cards.
+- [x] `useAdmin` hook → loads `/admin/polls` + `/admin/users` in parallel; actions (closePoll/deletePoll/setRole/deleteUser) re-fetch on success.
+- [x] Nav shows **Admin** link (`ShieldCheck`) only when `isAdmin()`.
+- **Files:** identity `Services/AdminService.cs` + `Controllers/AdminUsersController.cs` + `DTOs/AuthDtos.cs` + `Program.cs` + `IdentityApi.Tests/Integration/AdminUsersEndpointTests.cs`; frontend new `src/pages/AdminDashboardPage.tsx` + `src/hooks/useAdmin.ts`, `src/App.tsx` (route + nav), `src/types/poll.types.ts` (+`AdminUser`), `src/index.css` (admin styles).
+- **DoD:** ✅ identity `dotnet test` **18 passed** (15 → 18; +3 admin-users); frontend `npm run lint` clean + `npm run build` green (353ms; fixed one `set-state-in-effect`); admin manages polls + users from the UI; non-admins redirected from `/admin`.
+
+### Phase 12.7 — Tests, docs, verify & deploy  `[RBAC]`  ✅ DONE (commit/push pending user OK)
+- [x] Integration tests for 401/403/409 paths (header-driven, gateway-independent) — landed across 12.3/12.4/12.6: poll create-**401** + admin-polls **403**/200; vote upvote-**409** + analytics **403** + pin **403**; identity admin-users **403**.
+- [x] Full backend sweep + frontend: **poll 33 · vote 43 · identity 18 = 94** green; frontend lint clean + build (406ms); gateway build 0 warnings.
+- [x] Synced [ARCHITECTURE.md](ARCHITECTURE.md): stack auth/role rows; Gateway/Vote/Identity responsibilities; `User.Role` + `QuestionUpvote` entities + DB diagram + indexes; endpoint auth columns (create-auth, analytics-auth, pin/delete owner-admin, `/api/admin/*`); gateway transform (`X-User-Role`) + routing rows (10/11/12) + defense-in-depth note; auth data-flow (role claim); **new RBAC section + permission matrix**; env `Admin__Emails`; frontend routes (`/admin`); 3 design-decision rows; project-structure additions.
+- [x] Updated [DEPLOYMENT.md](DEPLOYMENT.md): `Admin__Emails__0` on identity-api; RBAC migrations auto-apply note + first-admin promotion step.
+- [ ] Commit + push (deploys via CI/CD) — **awaiting user go-ahead** (push triggers a production deploy; commit omits the Co-Authored-By trailer per your preference).
+- **DoD:** ✅ all tests green; ARCHITECTURE/DEPLOYMENT synced. Deploy on your push.
+
+**Definition of Done (Phase 12):** the matrix is enforced end-to-end — guests vote/ask/upvote/view but cannot create or see analytics; users own their polls; admins manage everything; one-upvote-per-person; lint+build+tests green; docs synced.
+
+### Impact summary — files & schema this phase changes
+- **New files:** `Models/QuestionUpvote.cs` (vote-api), `Migrations/AddUserRole` (identity), `Migrations/AddQuestionUpvotes` (vote), `RequireAuth.tsx` + `RequireAdmin.tsx` + `AdminDashboardPage.tsx` + `useAdmin.ts` (frontend).
+- **Schema changes:** `IdentityDb.Users` +`Role`; `VoteDb` + `QuestionUpvotes` table (unique `(QuestionId, VoterKey)`) → **3 features need EF migrations** (auto-apply on startup).
+- **Contract change:** `PollResponse`/`PollInfo` (+`frontend PollInfo`) gain `CreatorId`.
+- **Behaviour changes (watch for regressions):** `POST /api/polls` now **401 without a token** (anonymous create removed); `GET …/analytics` now **auth+owner/admin**; `…/questions/{id}/pin` now **owner/admin only**; `…/upvote` now **deduplicated (409 on repeat)**. Update any tests/docs that assumed the old open behaviour (esp. Phase 9 integration tests + ARCHITECTURE.md endpoint/auth columns).
+
+---
+
 ## Cross-cutting checklist (every phase)
 
 - [ ] Tests written alongside the feature (`test-driven-development`)
@@ -243,6 +347,10 @@ Phased plan to take this repo from **docs-only** to a **deployed, tested, real-t
 Phase 0 → 1 (Poll API) → 2 (Vote API) → 3 (Gateway) → 4 (Frontend core)
         → 5 (SignalR) → 6 (Auth) → 7 (Docker) → 8 (CI/CD + deploy)
         → 9 (integration tests) → 10 (Merit/Dist) → 11 (docs/submit)
+        → 12 (RBAC: Guest/User/Admin)
 ```
+
+**Phase 12 internal order:** 12.1 (identity roles) → 12.2 (gateway policies) → 12.3 (poll-api) →
+12.4 (vote-api) → 12.5 (frontend guards) → 12.6 (admin dashboard) → 12.7 (tests/docs/deploy).
 
 **Minimum for a Pass:** Phases 0–8 + 11. **Merit:** add Phases 9–10 (≥2 merit items). **Distinction:** add a Phase 10 distinction feature + thorough docs and clear design rationale.

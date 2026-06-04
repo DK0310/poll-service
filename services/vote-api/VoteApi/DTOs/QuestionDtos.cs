@@ -9,6 +9,13 @@ public record SubmitQuestionRequest
     public string Text { get; init; } = "";
 }
 
+// Upvote body — the browser voter token used to dedup upvotes for guests.
+// (When the caller is logged in, the Gateway-set X-User-Id is used as the voter key instead.)
+public record UpvoteRequest
+{
+    public string? VoterToken { get; init; }
+}
+
 public record QuestionResponse
 {
     public Guid Id { get; init; }

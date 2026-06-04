@@ -44,6 +44,13 @@ public class PollRepository
             .Take(limit)
             .ToListAsync();
 
+    public virtual async Task<IEnumerable<Poll>> GetAllAsync(int limit = 200)
+        => await _db.Polls
+            .Include(p => p.Options)
+            .OrderByDescending(p => p.CreatedAt)
+            .Take(limit)
+            .ToListAsync();
+
     public virtual async Task<IEnumerable<Poll>> GetExpiredAsync()
         => await _db.Polls
             .Where(p => p.Status == PollStatus.Open

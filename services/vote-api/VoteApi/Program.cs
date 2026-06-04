@@ -46,7 +46,7 @@ var app = builder.Build();
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<VoteDbContext>();
-    if (db.Database.IsRelational())
+    if (db.Database.IsRelational() && !EF.IsDesignTime)
     {
         for (var attempt = 1; ; attempt++)
         {

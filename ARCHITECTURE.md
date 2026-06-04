@@ -71,7 +71,8 @@ Poll & Survey Builder is a **microservices-based** real-time polling platform bu
 | Database | SQL Server (per-service DBs) | 2022 |
 | ORM | Entity Framework Core | 10.0 |
 | Real-Time | SignalR WebSocket | ASP.NET Core 10 |
-| Auth | JWT Bearer (7-day expiry, validated at Gateway) | — |
+| Auth | JWT Bearer (7-day expiry, `sub`+`role` claims, validated at Gateway) | — |
+| Authorization | Role-based (Guest / User / Admin) — Gateway policies + per-service owner/admin checks | — |
 | Charts | Hand-rolled SVG (`LiveBarChart`, `LineChart`) | — |
 | SignalR client | `@microsoft/signalr` | Latest |
 | Password hashing | BCrypt | — |
@@ -90,14 +91,14 @@ Poll & Survey Builder is a **microservices-based** real-time polling platform bu
 | Property | Value |
 |---|---|
 | Port | 5000 (external), 8080 (container) |
-| Responsibility | Route requests, validate JWT, set `X-User-Id` header, proxy WebSockets |
+| Responsibility | Route requests, validate JWT, set `X-User-Id` + `X-User-Role` headers, enforce route-level authorization (`authenticated` / `admin`), proxy WebSockets |
 | Database | None (stateless) |
 | Key Tech | YARP reverse proxy |
 
 The Gateway is the **single entry point** for all external traffic. It:
 - Routes requests to the correct backend service based on URL patterns
-- Validates JWT tokens for protected endpoints
-- Extracts the user ID from the JWT and forwards it as the `X-User-Id` header
+- Validates JWT tokens for protected endpoints; enforces the `authenticated` and `admin` authorization policies per route
+- Extracts the user id (`sub`) and role (`role`) from the JWT and forwards them as the `X-User-Id` / `X-User-Role` headers (stripping any client-supplied copies first — anti-spoof)
 - Proxies WebSocket connections for SignalR
 
 ### 2. Poll API
@@ -105,7 +106,7 @@ The Gateway is the **single entry point** for all external traffic. It:
 | Property | Value |
 |---|---|
 | Port | 5001 (external), 8080 (container) |
-| Responsibility | Poll CRUD — create, read, close, delete, list |
+| Responsibility | Poll CRUD — create (login required), read, close/delete (owner or admin), list; admin list of all polls |
 | Database | `PollDb` — Polls, PollOptions tables |
 | Owns | Polls, PollOptions |
 | Consumes | Nothing — self-contained |
@@ -115,9 +116,9 @@ The Gateway is the **single entry point** for all external traffic. It:
 | Property | Value |
 |---|---|
 | Port | 5002 (external), 8080 (container) |
-| Responsibility | Vote submission, results aggregation, **real-time broadcasting**, creator analytics, anonymous Q&A |
-| Database | `VoteDb` — Votes, Questions tables |
-| Owns | Votes, Questions |
+| Responsibility | Vote submission, results aggregation, **real-time broadcasting**, creator analytics (owner/admin), anonymous Q&A (ask/upvote open; pin/delete owner/admin) |
+| Database | `VoteDb` — Votes, Questions, QuestionUpvotes tables |
+| Owns | Votes, Questions, QuestionUpvotes |
 | Consumes | Calls Poll API over HTTP to validate a poll exists and is active before accepting a vote |
 | Special | **SignalR Hub** at `/hubs/poll` for live vote updates (`ReceiveVoteUpdate`) and live Q&A (`ReceiveQuestionsUpdate`) |
 
@@ -126,8 +127,8 @@ The Gateway is the **single entry point** for all external traffic. It:
 | Property | Value |
 |---|---|
 | Port | 5003 (external), 8080 (container) |
-| Responsibility | User registration, login, JWT token generation |
-| Database | `IdentityDb` — Users table |
+| Responsibility | User registration, login, role-aware JWT generation (`role` claim), admin bootstrap, admin user management (list / promote-demote / delete) |
+| Database | `IdentityDb` — Users table (with `Role`) |
 | Owns | Users |
 | Consumes | Nothing — self-contained |
 
@@ -156,7 +157,8 @@ poll-service/
 │   ├── poll-api/                          ← Poll management microservice
 │   │   ├── PollApi/                       ← ASP.NET Core Web API
 │   │   │   ├── Controllers/
-│   │   │   │   └── PollsController.cs      ← Poll CRUD endpoints
+│   │   │   │   ├── PollsController.cs      ← Poll CRUD endpoints
+│   │   │   │   └── AdminPollsController.cs  ← GET /api/admin/polls (admin)
 │   │   │   ├── Common/
 │   │   │   │   └── Result.cs               ← Result<T> (per-service)
 │   │   │   ├── Services/
@@ -205,7 +207,8 @@ poll-service/
 │   │   │   │   └── QuestionDtos.cs         ← SubmitQuestionRequest, QuestionResponse
 │   │   │   ├── Models/
 │   │   │   │   ├── Vote.cs
-│   │   │   │   └── Question.cs
+│   │   │   │   ├── Question.cs
+│   │   │   │   └── QuestionUpvote.cs        ← Upvote dedup (unique QuestionId+VoterKey)
 │   │   │   ├── Data/
 │   │   │   │   ├── VoteDbContext.cs
 │   │   │   │   └── Migrations/
@@ -223,11 +226,13 @@ poll-service/
 │   ├── identity-api/                      ← Auth microservice
 │   │   ├── IdentityApi/                   ← ASP.NET Core Web API
 │   │   │   ├── Controllers/
-│   │   │   │   └── AuthController.cs       ← Register/login
+│   │   │   │   ├── AuthController.cs       ← Register/login
+│   │   │   │   └── AdminUsersController.cs  ← /api/admin/users (admin)
 │   │   │   ├── Common/
 │   │   │   │   └── Result.cs               ← Result<T> (per-service)
 │   │   │   ├── Services/
-│   │   │   │   └── AuthService.cs          ← BCrypt + JWT generation
+│   │   │   │   ├── AuthService.cs          ← BCrypt + JWT (role claim) generation
+│   │   │   │   └── AdminService.cs         ← User management (list/setRole/delete)
 │   │   │   ├── DTOs/
 │   │   │   │   └── AuthDtos.cs             ← RegisterRequest, LoginRequest, AuthResponse
 │   │   │   ├── Models/
@@ -257,6 +262,9 @@ poll-service/
 │   ├── src/
 │   │   ├── api/
 │   │   │   └── api.ts                      ← Axios instance (→ Gateway)
+│   │   ├── auth/
+│   │   │   ├── session.ts                  ← token + JWT decode (getUserId/getRole/isAdmin)
+│   │   │   └── voter.ts                    ← persistent browser voter token (vote + upvote)
 │   │   ├── types/
 │   │   │   └── poll.types.ts               ← TypeScript interfaces for API data
 │   │   ├── hooks/
@@ -266,21 +274,25 @@ poll-service/
 │   │   │   ├── useLiveResults.ts           ← SignalR + initial results
 │   │   │   ├── useAnalytics.ts             ← Fetch creator analytics
 │   │   │   ├── useQuestions.ts             ← Q&A SignalR + submit/upvote/pin
-│   │   │   └── useMyPolls.ts               ← Fetch creator's polls
+│   │   │   ├── useMyPolls.ts               ← Fetch creator's polls
+│   │   │   └── useAdmin.ts                 ← Admin dashboard data + actions
 │   │   ├── components/
 │   │   │   ├── PollForm.tsx                ← Create poll form (question + type + options)
 │   │   │   ├── VoteForm.tsx                ← Vote interface (radios/rating/text by type)
 │   │   │   ├── LiveBarChart.tsx            ← Animated results bar chart
 │   │   │   ├── LineChart.tsx               ← SVG votes-over-time chart (analytics)
-│   │   │   ├── QandAPanel.tsx              ← Anonymous Q&A panel
+│   │   │   ├── QandAPanel.tsx              ← Anonymous Q&A panel (pin gated by canModerate)
 │   │   │   ├── PollCard.tsx                ← Poll summary card
-│   │   │   └── ShareLink.tsx               ← Copyable share link
+│   │   │   ├── ShareLink.tsx               ← Copyable share link
+│   │   │   ├── RequireAuth.tsx             ← Route guard (logged-in only)
+│   │   │   └── RequireAdmin.tsx            ← Route guard (admin only)
 │   │   ├── pages/
-│   │   │   ├── CreatePollPage.tsx          ← Poll creation interface
+│   │   │   ├── CreatePollPage.tsx          ← Poll creation interface (guest CTA)
 │   │   │   ├── VotePage.tsx                ← Voting page (by code)
 │   │   │   ├── ResultsPage.tsx             ← Live results page
 │   │   │   ├── AnalyticsPage.tsx           ← Creator analytics dashboard
 │   │   │   ├── MyPollsPage.tsx             ← Creator's poll dashboard
+│   │   │   ├── AdminDashboardPage.tsx      ← Admin: all polls + users
 │   │   │   ├── LoginPage.tsx               ← Login form
 │   │   │   └── RegisterPage.tsx            ← Registration form
 │   │   └── App.tsx                         ← Router setup
@@ -316,7 +328,7 @@ Each service owns its data exclusively and has its own SQL Server database, DbCo
 | Service | Database | DbContext | Tables |
 |---|---|---|---|
 | Poll API | `PollDb` | `PollDbContext` | `Polls`, `PollOptions` |
-| Vote API | `VoteDb` | `VoteDbContext` | `Votes`, `Questions` |
+| Vote API | `VoteDb` | `VoteDbContext` | `Votes`, `Questions`, `QuestionUpvotes` |
 | Identity API | `IdentityDb` | `IdentityDbContext` | `Users` |
 
 > In development, all three databases can live in the same SQL Server instance (same `db` container, different `Database=` values). In production they may be separate databases or separate instances. EF Core migrations create each database independently.
@@ -331,8 +343,8 @@ Each service owns its data exclusively and has its own SQL Server database, DbCo
 │ ├─ Id (PK)      │ ├─ Id (PK)       │ ├─ Id (PK)            │
 │ ├─ Code (UQ)    │ ├─ PollCode      │ ├─ Email (UQ)         │
 │ ├─ Question     │ ├─ OptionIndex   │ ├─ PasswordHash       │
-│ ├─ Type         │ ├─ TextAnswer?   │ └─ CreatedAt          │
-│ ├─ Status       │ ├─ VoterToken    │                        │
+│ ├─ Type         │ ├─ TextAnswer?   │ ├─ Role               │
+│ ├─ Status       │ ├─ VoterToken    │ └─ CreatedAt          │
 │ ├─ ExpiresAt    │ ├─ VotedAt       │                        │
 │ ├─ CreatorId    │ └─ UQ(PollCode,  │                        │
 │ └─ CreatedAt    │      VoterToken) │                        │
@@ -344,6 +356,14 @@ Each service owns its data exclusively and has its own SQL Server database, DbCo
 │ └─ Text         │ ├─ Upvotes       │                        │
 │                 │ ├─ IsPinned      │                        │
 │                 │ └─ CreatedAt     │                        │
+│                 │                  │                        │
+│                 │ QuestionUpvotes  │                        │
+│                 │ ├─ Id (PK)       │                        │
+│                 │ ├─ QuestionId    │                        │
+│                 │ ├─ VoterKey      │                        │
+│                 │ ├─ CreatedAt     │                        │
+│                 │ └─ UQ(QuestionId,│                        │
+│                 │      VoterKey)   │                        │
 └─────────────────┴──────────────────┴────────────────────────┘
 ```
 
@@ -392,9 +412,20 @@ Computed (not persisted): `IsExpired`, `IsClosed`, `IsActive`.
 | Id | Guid | PK, `NEWID()` default |
 | PollCode | string | Which poll — **NOT a FK** (different database), indexed |
 | Text | string | The question text (max 1000) |
-| Upvotes | int | Audience upvote count |
-| IsPinned | bool | Highlighted/pinned by the host |
+| Upvotes | int | Audience upvote count (distinct upvoters; see QuestionUpvote) |
+| IsPinned | bool | Highlighted/pinned by the host (owner/admin only) |
 | CreatedAt | DateTime | UTC, `GETUTCDATE()` default |
+
+**QuestionUpvote** (`VoteDb.QuestionUpvotes`) — one upvote per person per question
+
+| Property | Type | Notes |
+|---|---|---|
+| Id | Guid | PK, `NEWID()` default |
+| QuestionId | Guid | Which question — **NOT a FK navigation** (kept flat) |
+| VoterKey | string | `X-User-Id` for logged-in users, else the browser voter token (max 128) |
+| CreatedAt | DateTime | UTC, `GETUTCDATE()` default |
+
+A **unique index on `(QuestionId, VoterKey)`** enforces one upvote per person per question; a repeat upvote returns **409** and does not double-count.
 
 **User** (`IdentityDb.Users`)
 
@@ -403,6 +434,7 @@ Computed (not persisted): `IsExpired`, `IsClosed`, `IsActive`.
 | Id | Guid | PK, `NEWID()` default |
 | Email | string | **Unique** login |
 | PasswordHash | string | BCrypt hash |
+| Role | string | `User` (default) or `Admin`; max 20, `NOT NULL default 'User'`. Issued in the JWT `role` claim. |
 | CreatedAt | DateTime | UTC, `GETUTCDATE()` default |
 
 ### Indexes
@@ -417,6 +449,7 @@ Computed (not persisted): `IsExpired`, `IsClosed`, `IsActive`.
 | VoteDb | `Votes.(PollCode, OptionIndex)` | Vote-count aggregation |
 | VoteDb | `Votes.VotedAt` | Analytics (votes over time) |
 | VoteDb | `Questions.PollCode` | List a poll's Q&A questions |
+| VoteDb | `QuestionUpvotes.(QuestionId, VoterKey)` (UNIQUE) | One upvote per person per question |
 | IdentityDb | `Users.Email` (UNIQUE) | Login lookup |
 
 ### Cross-Service References
@@ -435,11 +468,12 @@ All external endpoints are reached **through the Gateway**.
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/api/polls` | Optional | Create a new poll |
-| GET | `/api/polls/{code}` | No | Get poll details + options |
-| PATCH | `/api/polls/{code}/close` | Required (creator) | Close poll |
-| DELETE | `/api/polls/{code}` | Required (creator) | Delete poll |
+| POST | `/api/polls` | **Required** | Create a new poll (login required; `CreatorId` from `X-User-Id`) |
+| GET | `/api/polls/{code}` | No | Get poll details + options (response includes `creatorId`) |
+| PATCH | `/api/polls/{code}/close` | Required (owner **or** admin) | Close poll |
+| DELETE | `/api/polls/{code}` | Required (owner **or** admin) | Delete poll |
 | GET | `/api/polls/my-polls` | Required | List creator's polls |
+| GET | `/api/admin/polls` | **Admin** | List **all** polls (admin dashboard) |
 
 ### Vote API
 
@@ -447,40 +481,49 @@ All external endpoints are reached **through the Gateway**.
 |---|---|---|---|
 | POST | `/api/polls/{code}/vote` | No | Submit a vote (option index, or text for OpenText polls) |
 | GET | `/api/polls/{code}/results` | No | Get vote results (or text answers for OpenText) |
-| GET | `/api/polls/{code}/analytics` | No | Votes-over-time, peak minute, top option |
+| GET | `/api/polls/{code}/analytics` | **Required (owner or admin)** | Votes-over-time, peak minute, top option (403 if not owner/admin) |
 | GET | `/api/polls/{code}/questions` | No | List Q&A questions (pinned → upvotes → oldest) |
-| POST | `/api/polls/{code}/questions` | No | Submit a Q&A question |
-| POST | `/api/polls/{code}/questions/{id}/upvote` | No | Upvote a question |
-| POST | `/api/polls/{code}/questions/{id}/pin` | No | Toggle a question's pinned state |
+| POST | `/api/polls/{code}/questions` | No | Submit a Q&A question (anonymous) |
+| POST | `/api/polls/{code}/questions/{id}/upvote` | No | Upvote a question — **one per person** (`X-User-Id` or body `voterToken`); repeat → 409 |
+| POST | `/api/polls/{code}/questions/{id}/pin` | Owner **or** admin | Toggle a question's pinned state (403 otherwise) |
+| DELETE | `/api/polls/{code}/questions/{id}` | Owner **or** admin | Delete a question (403 otherwise) |
 | WS | `/hubs/poll` | No | SignalR live results (`ReceiveVoteUpdate`) + Q&A (`ReceiveQuestionsUpdate`) |
 
 ### Identity API
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/api/auth/register` | No | Register new user, receive JWT |
-| POST | `/api/auth/login` | No | Login, receive JWT |
+| POST | `/api/auth/register` | No | Register new user (role `User`), receive JWT (`sub`+`role`) |
+| POST | `/api/auth/login` | No | Login, receive JWT (`sub`+`role`) |
+| GET | `/api/admin/users` | **Admin** | List all users (id, email, role, createdAt) |
+| POST | `/api/admin/users/{id}/role` | **Admin** | Set a user's role (`{ "role": "Admin" \| "User" }`); blocks self-change |
+| DELETE | `/api/admin/users/{id}` | **Admin** | Delete a user; blocks self-delete |
 
 ### Gateway Routing Table (YARP)
 
-Routes are evaluated by `Order` (lowest first). More specific routes (vote, results, SignalR) **must** come before the catch-all poll route. Protected routes require the `authenticated` authorization policy.
+Routes are evaluated by `Order` (lowest first). More specific routes (vote, results, SignalR, create, admin) **must** come before the catch-all poll route. Protected routes require the `authenticated` policy; admin routes require the `admin` policy (`RequireAuthenticatedUser().RequireClaim("role","Admin")`).
 
-A **gateway-wide YARP code transform** (`AddRequestTransform`) sets the `X-User-Id` header from the validated JWT's `sub` claim on every proxied request, and **strips any client-supplied `X-User-Id` first** (anti-spoofing). Config-based `{claim:...}` tokens are not supported by YARP, so this is done in code. On public routes the header is set only when a valid token is present (optional-auth create attribution); otherwise it is removed.
+A **gateway-wide YARP code transform** (`AddRequestTransform`) sets the `X-User-Id` header from the validated JWT's `sub` claim **and the `X-User-Role` header from the `role` claim** on every proxied request, and **strips any client-supplied copies first** (anti-spoofing). Config-based `{claim:...}` tokens are not supported by YARP, so this is done in code. On public routes the headers are set only when a valid token is present (e.g. owner detection, upvote dedup by user id); otherwise they are removed.
 
-| Order | Route | Match | Cluster | Auth | X-User-Id |
+| Order | Route | Match | Cluster | Auth | Forwarded |
 |---|---|---|---|---|---|
 | 1 | vote-submit | `/api/polls/{code}/vote` | vote-api | No | — |
 | 2 | vote-results | `/api/polls/{code}/results` | vote-api | No | — |
 | 3 | signalr-hub | `/hubs/{**remainder}` | vote-api | No | (WebSocket) |
 | 4 | auth-route | `/api/auth/{**remainder}` | identity-api | No | — |
-| 8 | vote-analytics | `/api/polls/{code}/analytics` | vote-api | No | — |
-| 9 | vote-questions | `/api/polls/{code}/questions/{**remainder}` | vote-api | No | — |
-| 5 | polls-protected | `/api/polls/my-polls` | poll-api | authenticated | ← `sub` |
-| 6 | polls-close | `/api/polls/{code}/close` (PATCH) | poll-api | authenticated | ← `sub` |
-| 7 | polls-delete | `/api/polls/{code}` (DELETE) | poll-api | authenticated | ← `sub` |
-| 100 | polls-public | `/api/polls/{**remainder}` | poll-api | No | ← `sub` (if token present) |
+| 8 | vote-analytics | `/api/polls/{code}/analytics` | vote-api | **authenticated** | ← `sub`+`role` |
+| 9 | vote-questions | `/api/polls/{code}/questions/{**remainder}` | vote-api | No | ← `sub`+`role` (if token present) |
+| 5 | polls-protected | `/api/polls/my-polls` | poll-api | authenticated | ← `sub`+`role` |
+| 6 | polls-close | `/api/polls/{code}/close` (PATCH) | poll-api | authenticated | ← `sub`+`role` |
+| 7 | polls-delete | `/api/polls/{code}` (DELETE) | poll-api | authenticated | ← `sub`+`role` |
+| 10 | polls-create | `/api/polls` (POST) | poll-api | **authenticated** | ← `sub`+`role` |
+| 11 | admin-polls | `/api/admin/polls/{**remainder}` | poll-api | **admin** | ← `sub`+`role` |
+| 12 | admin-users | `/api/admin/users/{**remainder}` | identity-api | **admin** | ← `sub`+`role` |
+| 100 | polls-public | `/api/polls/{**remainder}` | poll-api | No | ← `sub`+`role` (if token present) |
 
 Clusters: `poll-api → http://poll-api:8080`, `vote-api → http://vote-api:8080`, `identity-api → http://identity-api:8080`.
+
+> **Defense-in-depth:** the Gateway's `admin` policy is the first gate, but each admin controller (`AdminPollsController`, `AdminUsersController`) **re-checks `X-User-Role == Admin`** and returns 403 otherwise — services never trust that the Gateway was the only caller. Likewise owner/admin checks (close/delete/analytics/pin) run in the services using `X-User-Id` vs `CreatorId`.
 
 ---
 
@@ -549,20 +592,50 @@ JWT is validated **once, centrally, at the Gateway**. Downstream services trust 
 ```
 1. POST /api/auth/register|login → Gateway → Identity API
    ← Identity API returns a JWT (7-day expiry, signed with Jwt:Secret)
+     claims: sub (user id), email, role ("User" | "Admin"), jti
 
 2. Frontend stores it: localStorage.setItem('token', jwt)
    Axios request interceptor attaches: Authorization: Bearer <jwt>
+   (the SPA also base64-decodes the payload for UX gating — role/isAdmin — never for security)
 
 3. POST /api/polls (protected) with token
-   → Gateway validates the JWT
-   → if valid: forwards request + sets X-User-Id from the JWT `sub` claim
-     (YARP code transform; any client-supplied X-User-Id is stripped first)
-   → if invalid/missing: returns 401 before the request reaches any service
+   → Gateway validates the JWT + enforces the route policy (authenticated / admin)
+   → if valid: forwards request + sets X-User-Id (sub) and X-User-Role (role)
+     (YARP code transform; any client-supplied copies are stripped first)
+   → if invalid/missing: returns 401 (or 403 for an admin route) before any service is hit
 
-4. Poll API reads X-User-Id (it does not re-validate the JWT)
+4. The service reads X-User-Id / X-User-Role (it does not re-validate the JWT) and
+   applies fine-grained checks: owner = X-User-Id == CreatorId; admin = X-User-Role == Admin
 ```
 
 `Jwt:Secret` **must be identical** in the Gateway and the Identity API (the Gateway validates tokens the Identity API signs).
+
+---
+
+## Role-Based Access Control (Guest / User / Admin)
+
+Three roles:
+- **Guest** — no token. Can view polls, vote, see live results, and ask/upvote Q&A.
+- **User** — logged in (JWT `role: "User"`). Everything a guest can do, plus create polls and manage **their own** polls (close/delete/analytics/pin).
+- **Admin** — logged in (JWT `role: "Admin"`). Can manage **any** poll and **users** (a global dashboard).
+
+**Enforcement is layered** (the server is always authoritative; the SPA only gates UX):
+1. **Gateway** (coarse) — route policies: `authenticated` (create, my-polls, close, delete, analytics) and `admin` (`/api/admin/**`). Forwards `X-User-Id` + `X-User-Role`.
+2. **Service** (fine) — owner-or-admin checks using the forwarded headers: owner = `X-User-Id == Poll.CreatorId`; admin = `X-User-Role == Admin`. Admin controllers re-check the role (403 otherwise).
+3. **Frontend** (UX) — `RequireAuth`/`RequireAdmin` route guards, role decoded from the JWT for show/hide (Create form, analytics link, Pin button, Admin nav).
+
+| Capability | Guest | User | Admin |
+|---|:--:|:--:|:--:|
+| View poll · vote · live results | ✅ | ✅ | ✅ |
+| Ask Q&A (anonymous) · upvote (1×/person) | ✅ | ✅ | ✅ |
+| Create a poll | ❌ | ✅ | ✅ |
+| View creator analytics | ❌ | ✅ own | ✅ any |
+| My Polls · close · delete · pin/delete Q&A | ❌ | ✅ own | ✅ any |
+| Manage users · global dashboard | ❌ | ❌ | ✅ |
+
+**One upvote per person** (`QuestionUpvote` unique `(QuestionId, VoterKey)`): the voter key is the `X-User-Id` for logged-in users, otherwise the browser voter token — so a guest and an account are each capped at one upvote per question; a repeat returns **409**.
+
+**Admin bootstrap:** Identity API promotes any email listed in `Admin:Emails` (env `Admin__Emails__0`, `__1`, …) to `Admin` on startup — idempotent, and it promotes already-registered accounts too. There is no self-service path to `Admin`; only an existing admin (or the bootstrap list) can grant it.
 
 ---
 
@@ -578,6 +651,7 @@ JWT is validated **once, centrally, at the Gateway**. Downstream services trust 
 | Vote API | `Gateway__Url` | `http://gateway:8080` | CORS origin for SignalR |
 | Identity API | `ConnectionStrings__Default` | `Server=db,1433;Database=IdentityDb;...` | IdentityDb connection |
 | Identity API | `Jwt__Secret` | `dev-secret-min-32-characters-here!` | JWT signing key |
+| Identity API | `Admin__Emails__0` | *(unset)* | Email(s) promoted to `Admin` on startup (`__0`, `__1`, …) |
 | Frontend | `VITE_API_URL` | `http://localhost:5000/api` | Gateway REST URL |
 | Frontend | `VITE_HUB_URL` | `http://localhost:5000/hubs/poll` | SignalR via Gateway |
 
@@ -665,10 +739,12 @@ Docker image naming: `pollbuilder-{service}` (e.g. `pollbuilder-poll-api`) on Do
 
 | Path | Page | Purpose |
 |---|---|---|
-| `/` | CreatePollPage | Poll creation form |
+| `/` | CreatePollPage | Poll creation form (guests see a "log in to create" CTA) |
 | `/poll/:code` | VotePage | Voting page |
 | `/poll/:code/results` | ResultsPage | Live results (SignalR) |
-| `/my-polls` | MyPollsPage | Creator's poll dashboard |
+| `/poll/:code/analytics` | AnalyticsPage | Creator analytics (owner/admin) |
+| `/my-polls` | MyPollsPage | Creator's poll dashboard (`RequireAuth`) |
+| `/admin` | AdminDashboardPage | Admin dashboard — all polls + users (`RequireAdmin`) |
 | `/login` | LoginPage | Login |
 | `/register` | RegisterPage | Registration |
 
@@ -684,7 +760,10 @@ Docker image naming: `pollbuilder-{service}` (e.g. `pollbuilder-poll-api`) on Do
 | **SignalR in Vote API only** | Only voting needs real-time; other services use plain REST |
 | **`PollCode` as a string in VoteDb** | No FK across databases; validated via HTTP call to Poll API |
 | **`CreatorId` as a plain Guid in PollDb** | No FK to Users (different DB); value comes from the JWT via `X-User-Id` |
-| **JWT validated at Gateway only** | Centralized auth; services trust the Gateway's `X-User-Id` header |
+| **JWT validated at Gateway only** | Centralized auth; services trust the Gateway's `X-User-Id`/`X-User-Role` headers |
+| **Role in the JWT `role` claim → `X-User-Role` header** | Same proven path as `sub`→`X-User-Id`; coarse gating at the Gateway, fine owner/admin checks in services (defense-in-depth) |
+| **Upvote dedup via a `QuestionUpvote` row** (unique `(QuestionId, VoterKey)`) | One upvote per person without a login requirement; voter key = user id when present, else browser token |
+| **Admin bootstrap via `Admin:Emails` config** | No self-service privilege escalation; the first admin is seeded from a trusted env list, then admins manage roles |
 | **`Result<T>` instead of exceptions** | Explicit control flow for expected failures across all services |
 | **Typed `HttpClient` for inter-service calls** | Correct `HttpClient` lifetime; avoids socket exhaustion |
 | **Docker multi-stage builds** | ~200 MB production images instead of ~900 MB |

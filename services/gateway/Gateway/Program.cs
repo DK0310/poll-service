@@ -15,8 +15,9 @@ builder.Services.AddReverseProxy()
     {
         ctx.AddRequestTransform(transform =>
         {
-            // Anti-spoofing: never trust a client-supplied X-User-Id.
+            // Anti-spoofing: never trust client-supplied identity headers.
             transform.ProxyRequest.Headers.Remove("X-User-Id");
+            transform.ProxyRequest.Headers.Remove("X-User-Role");
 
             // Forward the user id from the validated JWT (sub) when present.
             var userId = transform.HttpContext.User.FindFirst("sub")?.Value
@@ -24,6 +25,13 @@ builder.Services.AddReverseProxy()
             if (!string.IsNullOrEmpty(userId))
             {
                 transform.ProxyRequest.Headers.Add("X-User-Id", userId);
+            }
+
+            // Forward the role from the validated JWT (role) when present.
+            var role = transform.HttpContext.User.FindFirst("role")?.Value;
+            if (!string.IsNullOrEmpty(role))
+            {
+                transform.ProxyRequest.Headers.Add("X-User-Role", role);
             }
 
             return ValueTask.CompletedTask;
@@ -50,7 +58,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization(opt =>
-    opt.AddPolicy("authenticated", p => p.RequireAuthenticatedUser()));
+{
+    opt.AddPolicy("authenticated", p => p.RequireAuthenticatedUser());
+    // Admin-only routes: a valid JWT carrying the role=Admin claim.
+    opt.AddPolicy("admin", p => p.RequireAuthenticatedUser().RequireClaim("role", "Admin"));
+});
 
 // CORS — the browser frontend is the only external origin allowed.
 // AllowCredentials is required for the SignalR WebSocket.

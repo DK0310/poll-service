@@ -25,6 +25,22 @@ public class QuestionRepository
         await _db.SaveChangesAsync();
     }
 
+    public virtual async Task DeleteAsync(Question question)
+    {
+        _db.Questions.Remove(question);
+        await _db.SaveChangesAsync();
+    }
+
+    // ── Upvote dedup (one per voter key per question) ───────────
+    public virtual Task<bool> HasUpvotedAsync(Guid questionId, string voterKey)
+        => _db.QuestionUpvotes.AnyAsync(u => u.QuestionId == questionId && u.VoterKey == voterKey);
+
+    public virtual async Task AddUpvoteAsync(Guid questionId, string voterKey)
+    {
+        _db.QuestionUpvotes.Add(new QuestionUpvote { QuestionId = questionId, VoterKey = voterKey });
+        await _db.SaveChangesAsync();
+    }
+
     /// <summary>Pinned first, then most-upvoted, then oldest.</summary>
     public virtual async Task<List<Question>> GetByPollAsync(string pollCode)
         => await _db.Questions

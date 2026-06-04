@@ -82,12 +82,17 @@ public class VoteService
         return Result<VoteResultsResponse>.Success(results);
     }
 
-    /// <summary>Creator analytics: votes over time (per-minute), peak minute, and the leading option.</summary>
-    public async Task<Result<AnalyticsResponse>> GetAnalyticsAsync(string code)
+    /// <summary>Creator analytics: votes over time (per-minute), peak minute, and the leading option.
+    /// Restricted to the poll owner or an admin.</summary>
+    public async Task<Result<AnalyticsResponse>> GetAnalyticsAsync(string code, Guid? userId, bool isAdmin)
     {
         var poll = await _pollClient.GetPollAsync(code);
         if (poll is null)
             return Result<AnalyticsResponse>.Failure("Poll not found");
+
+        // Owner-or-admin gate.
+        if (!isAdmin && (userId is null || poll.CreatorId != userId))
+            return Result<AnalyticsResponse>.Failure("Forbidden — poll owner or admin only");
 
         var counts = await _repo.GetVoteCountsAsync(code);
         var timestamps = await _repo.GetVoteTimestampsAsync(code);

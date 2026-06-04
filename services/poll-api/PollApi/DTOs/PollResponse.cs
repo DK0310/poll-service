@@ -17,6 +17,7 @@ public record PollResponse
     public DateTime CreatedAt { get; init; }
     public DateTime? ExpiresAt { get; init; }
     public bool IsActive { get; init; }
+    public Guid? CreatorId { get; init; }   // owner — for ownership checks (Vote API analytics, frontend)
     public List<OptionResponse> Options { get; init; } = new();
     public string Url => $"/poll/{Code}";
 
@@ -29,6 +30,7 @@ public record PollResponse
         CreatedAt = e.CreatedAt,
         ExpiresAt = e.ExpiresAt,
         IsActive = e.IsActive,
+        CreatorId = e.CreatorId,
         Options = e.Options
             .OrderBy(o => o.OptionIndex)
             .Select(o => new OptionResponse { OptionIndex = o.OptionIndex, Text = o.Text })

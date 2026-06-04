@@ -10,6 +10,7 @@ builder.Services.AddDbContext<IdentityDbContext>(opt =>
         sql => sql.EnableRetryOnFailure()));
 
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<AdminService>();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -21,7 +22,7 @@ var app = builder.Build();
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-    if (db.Database.IsRelational())
+    if (db.Database.IsRelational() && !EF.IsDesignTime)
     {
         for (var attempt = 1; ; attempt++)
         {
@@ -31,6 +32,25 @@ await using (var scope = app.Services.CreateAsyncScope())
                 app.Logger.LogWarning(ex, "Database not ready (attempt {Attempt}); retrying in 5s…", attempt);
                 await Task.Delay(TimeSpan.FromSeconds(5));
             }
+        }
+    }
+
+    // Promote configured admin emails to the Admin role (idempotent). Admins register
+    // normally first; this elevates them on startup. Config: Admin:Emails (env Admin__Emails__0, …).
+    var adminEmails = (app.Configuration.GetSection("Admin:Emails").Get<string[]>() ?? [])
+        .Select(e => e.Trim().ToLowerInvariant())
+        .Where(e => e.Length > 0)
+        .ToArray();
+    if (adminEmails.Length > 0)
+    {
+        var toPromote = await db.Users
+            .Where(u => adminEmails.Contains(u.Email) && u.Role != "Admin")
+            .ToListAsync();
+        foreach (var u in toPromote) u.Role = "Admin";
+        if (toPromote.Count > 0)
+        {
+            await db.SaveChangesAsync();
+            app.Logger.LogInformation("Promoted {Count} user(s) to Admin.", toPromote.Count);
         }
     }
 }

@@ -252,7 +252,7 @@ public class VoteServiceTests
             minute1, minute1.AddSeconds(20), minute1.AddSeconds(40), minute2.AddSeconds(5)
         });
 
-        var result = await _sut.GetAnalyticsAsync("abc12");
+        var result = await _sut.GetAnalyticsAsync("abc12", userId: null, isAdmin: true);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(4, result.Value!.TotalVotes);
@@ -270,7 +270,7 @@ public class VoteServiceTests
         _repo.Setup(r => r.GetVoteCountsAsync("abc12")).ReturnsAsync(new List<VoteCount>());
         _repo.Setup(r => r.GetVoteTimestampsAsync("abc12")).ReturnsAsync(new List<DateTime>());
 
-        var result = await _sut.GetAnalyticsAsync("abc12");
+        var result = await _sut.GetAnalyticsAsync("abc12", userId: null, isAdmin: true);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(0, result.Value!.TotalVotes);
@@ -284,8 +284,32 @@ public class VoteServiceTests
     {
         _pollClient.Setup(c => c.GetPollAsync("nope1")).ReturnsAsync((PollInfo?)null);
 
-        var result = await _sut.GetAnalyticsAsync("nope1");
+        var result = await _sut.GetAnalyticsAsync("nope1", userId: null, isAdmin: true);
 
         Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task GetAnalytics_Succeeds_WhenOwner()
+    {
+        var owner = Guid.NewGuid();
+        _pollClient.Setup(c => c.GetPollAsync("own01")).ReturnsAsync(ActivePoll("own01") with { CreatorId = owner });
+        _repo.Setup(r => r.GetVoteCountsAsync("own01")).ReturnsAsync(new List<VoteCount>());
+        _repo.Setup(r => r.GetVoteTimestampsAsync("own01")).ReturnsAsync(new List<DateTime>());
+
+        var result = await _sut.GetAnalyticsAsync("own01", userId: owner, isAdmin: false);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task GetAnalytics_ReturnsForbidden_WhenNotOwnerNorAdmin()
+    {
+        _pollClient.Setup(c => c.GetPollAsync("own02")).ReturnsAsync(ActivePoll("own02") with { CreatorId = Guid.NewGuid() });
+
+        var result = await _sut.GetAnalyticsAsync("own02", userId: Guid.NewGuid(), isAdmin: false);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("forbidden", result.Error!, StringComparison.OrdinalIgnoreCase);
     }
 }

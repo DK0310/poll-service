@@ -13,9 +13,12 @@ namespace VoteApi.Tests.Integration;
 /// </summary>
 public class FakePollClientService : PollClientService
 {
+    // Fixed owner so tests can exercise the owner-or-admin gate (analytics, pin).
+    public static readonly Guid OwnerId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
     public FakePollClientService() : base(new HttpClient()) { }
 
-    // "nope1" → not found; "closed" → inactive; any other code → active 2-option poll.
+    // "nope1" → not found; "closed" → inactive; any other code → active 2-option poll owned by OwnerId.
     // Returning a poll for arbitrary codes lets each test use its own code, keeping vote
     // tallies isolated within the shared in-memory database.
     public override Task<PollInfo?> GetPollAsync(string code)
@@ -28,6 +31,7 @@ public class FakePollClientService : PollClientService
             Code = code,
             Question = "Test?",
             IsActive = code != "closed",
+            CreatorId = OwnerId,
             Options =
             [
                 new PollOptionInfo { OptionIndex = 0, Text = "A" },

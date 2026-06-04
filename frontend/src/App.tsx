@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, NavLink, Link, Route, Routes, useNavigate } from 'react-router-dom';
-import { Vote, LogOut } from 'lucide-react';
+import { Vote, LogOut, ShieldCheck } from 'lucide-react';
 import { CreatePollPage } from './pages/CreatePollPage';
 import { VotePage } from './pages/VotePage';
 import { ResultsPage } from './pages/ResultsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { MyPollsPage } from './pages/MyPollsPage';
+import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
-import { AUTH_CHANGED, clearToken, isAuthenticated } from './auth/session';
+import { RequireAuth } from './components/RequireAuth';
+import { RequireAdmin } from './components/RequireAdmin';
+import { AUTH_CHANGED, clearToken, isAuthenticated, isAdmin } from './auth/session';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   isActive ? 'nav-link nav-link--active' : 'nav-link';
@@ -16,9 +19,13 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 function Nav() {
   const navigate = useNavigate();
   const [authed, setAuthed] = useState(isAuthenticated());
+  const [admin, setAdmin] = useState(isAdmin());
 
   useEffect(() => {
-    const sync = () => setAuthed(isAuthenticated());
+    const sync = () => {
+      setAuthed(isAuthenticated());
+      setAdmin(isAdmin());
+    };
     window.addEventListener(AUTH_CHANGED, sync);
     return () => window.removeEventListener(AUTH_CHANGED, sync);
   }, []);
@@ -46,6 +53,12 @@ function Nav() {
               <NavLink to="/my-polls" className={navLinkClass}>
                 My Polls
               </NavLink>
+              {admin && (
+                <NavLink to="/admin" className={navLinkClass}>
+                  <ShieldCheck size={15} strokeWidth={2.25} aria-hidden="true" />
+                  Admin
+                </NavLink>
+              )}
               <button type="button" className="nav-link nav-link--logout" onClick={logout}>
                 <LogOut size={15} strokeWidth={2.25} aria-hidden="true" />
                 Log out
@@ -105,7 +118,22 @@ export default function App() {
             <Route path="/poll/:code" element={<VotePage />} />
             <Route path="/poll/:code/results" element={<ResultsPage />} />
             <Route path="/poll/:code/analytics" element={<AnalyticsPage />} />
-            <Route path="/my-polls" element={<MyPollsPage />} />
+            <Route
+              path="/my-polls"
+              element={
+                <RequireAuth>
+                  <MyPollsPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <RequireAdmin>
+                  <AdminDashboardPage />
+                </RequireAdmin>
+              }
+            />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="*" element={<NotFound />} />
