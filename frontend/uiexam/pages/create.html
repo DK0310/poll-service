@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PollBuilder — Create poll (wireframe)</title>
+<link rel="stylesheet" href="../css/wireframe.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ===== glass header ===== -->
+  <header class="app-header"><div class="app-header__inner">
+    <a class="brand">
+      <span class="brand__mark ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="m9 12 2 2 4-4"/><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5z"/><path d="M22 19H2"/></svg></span>
+      <span class="brand__text h-gradient">PollBuilder</span>
+    </a>
+    <nav class="app-nav">
+      <a class="nav-link nav-link--active">Create</a>
+      <a class="nav-link">My Polls</a>
+      <a class="nav-link">Admin</a>
+      <button class="nav-link">Log out</button>
+    </nav>
+  </div></header>
+
+  <!-- ===== main ===== -->
+  <main>
+    <div class="page">
+
+      <!-- primary: create form -->
+      <div class="card">
+        <h1>Create a poll</h1>
+        <p class="muted page-intro">Ask anything — share a link and watch results update live.</p>
+
+        <form class="poll-form" onsubmit="return false">
+          <div class="form-group">
+            <label>Your question <span class="req">*</span></label>
+            <input type="text" placeholder="What would you like to ask?">
+          </div>
+
+          <div class="form-group">
+            <span class="field-label">Question type</span>
+            <div class="seg">
+              <button type="button" class="seg-btn seg-btn--on">Multiple choice</button>
+              <button type="button" class="seg-btn">Yes / No</button>
+              <button type="button" class="seg-btn">Rating 1–5</button>
+              <button type="button" class="seg-btn">Open text</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <span class="field-label">Answer options <span class="req">*</span></span>
+            <div class="opt-row"><span class="opt-num">01</span><input type="text" placeholder="Option 1"></div>
+            <div class="opt-row"><span class="opt-num">02</span><input type="text" placeholder="Option 2"></div>
+            <div class="opt-row"><span class="opt-num">03</span><input type="text" placeholder="Option 3"><button type="button" class="opt-remove">✕</button></div>
+            <button type="button" class="opt-add">＋ Add option</button>
+            <p class="muted" style="font-size:13px;margin:8px 0 0;">2–6 options. Yes/No &amp; Rating fill in automatically; Open text has none.</p>
+          </div>
+
+          <div class="form-group">
+            <label>Closes (optional)</label>
+            <select><option>No expiry</option><option>1 hour</option><option>1 day</option><option>1 week</option></select>
+          </div>
+
+          <button type="submit" class="btn btn--block">Create poll</button>
+        </form>
+      </div>
+
+      <!-- alternate states (for reference) -->
+      <p class="muted" style="text-align:center; font-size:12px; letter-spacing:.06em; text-transform:uppercase; margin:32px 0 12px;">— alternate states —</p>
+
+      <!-- state: success receipt -->
+      <div class="card create-success">
+        <span class="success-badge ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+        <h1 class="h-gradient">Poll created</h1>
+        <p class="created-question">How did this sprint feel?</p>
+        <div class="share-link">
+          <span class="share-link__url">https://pollbuilder.app/poll/7fGh2</span>
+          <button class="btn btn-outline share-link__copy">Copy</button>
+        </div>
+        <div class="created-links">
+          <a class="btn">Open voting page →</a>
+          <a class="btn-outline">View live results</a>
+        </div>
+      </div>
+
+      <!-- state: logged-out gate -->
+      <div class="card empty-state">
+        <h1>Create a poll</h1>
+        <p class="muted">Log in to create a poll and manage it from your dashboard.</p>
+        <a class="btn">Log in to create</a>
+        <p class="muted" style="margin-top:16px;">No account? <a>Sign up</a></p>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <span class="mono">Poll &amp; Survey Builder</span><span>·</span><span>Live results in real time</span><span>·</span><span>AMD201</span>
+  </footer>
+</div>
+</body>
+</html>

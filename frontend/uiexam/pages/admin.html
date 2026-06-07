@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PollBuilder — Admin (wireframe)</title>
+<link rel="stylesheet" href="../css/wireframe.css">
+</head>
+<body>
+<div class="app-shell">
+  <header class="app-header"><div class="app-header__inner">
+    <a class="brand">
+      <span class="brand__mark ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="m9 12 2 2 4-4"/><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5z"/><path d="M22 19H2"/></svg></span>
+      <span class="brand__text h-gradient">PollBuilder</span>
+    </a>
+    <nav class="app-nav">
+      <a class="nav-link">Create</a>
+      <a class="nav-link">My Polls</a>
+      <a class="nav-link nav-link--active">🛡 Admin</a>
+      <button class="nav-link">Log out</button>
+    </nav>
+  </div></header>
+
+  <main>
+    <div class="page">
+      <div class="admin-head">
+        <span class="auth-badge ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>
+        <h1>Admin dashboard</h1>
+      </div>
+
+      <!-- all polls -->
+      <section class="card">
+        <h2 class="chart-card__title">All polls (3)</h2>
+        <div class="admin-list">
+          <div class="admin-row">
+            <div class="admin-row__main">
+              <a class="admin-row__title">How did this sprint feel?</a>
+              <span class="admin-row__meta mono">/poll/7fGh2</span>
+            </div>
+            <span class="pill pill--open">Open</span>
+            <div class="admin-row__actions">
+              <button class="btn-link">🔒 Close</button>
+              <button class="btn-link danger">🗑 Delete</button>
+            </div>
+          </div>
+          <div class="admin-row">
+            <div class="admin-row__main">
+              <a class="admin-row__title">Should we adopt trunk-based dev?</a>
+              <span class="admin-row__meta mono">/poll/k9Lm3</span>
+            </div>
+            <span class="pill pill--closed">Closed</span>
+            <div class="admin-row__actions">
+              <button class="btn-link danger">🗑 Delete</button>
+            </div>
+          </div>
+          <div class="admin-row">
+            <div class="admin-row__main">
+              <a class="admin-row__title">What should we improve?</a>
+              <span class="admin-row__meta mono">/poll/q2Wp8</span>
+            </div>
+            <span class="pill pill--open">Open</span>
+            <div class="admin-row__actions">
+              <button class="btn-link">🔒 Close</button>
+              <button class="btn-link danger">🗑 Delete</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- users -->
+      <section class="card admin-users-card">
+        <h2 class="chart-card__title">Users (3)</h2>
+        <div class="admin-list">
+          <div class="admin-row">
+            <div class="admin-row__main">
+              <span class="admin-row__title">jane@company.com</span>
+              <span class="admin-row__meta mono">joined 02/28/2026</span>
+            </div>
+            <span class="pill pill--open">Admin</span>
+            <div class="admin-row__actions">
+              <button class="btn-link">⬇ Make user</button>
+              <button class="btn-link danger">🗑 Delete</button>
+            </div>
+          </div>
+          <div class="admin-row">
+            <div class="admin-row__main">
+              <span class="admin-row__title">sam@company.com</span>
+              <span class="admin-row__meta mono">joined 03/04/2026</span>
+            </div>
+            <span class="pill pill--closed">User</span>
+            <div class="admin-row__actions">
+              <button class="btn-link">⬆ Make admin</button>
+              <button class="btn-link danger">🗑 Delete</button>
+            </div>
+          </div>
+          <div class="admin-row">
+            <div class="admin-row__main">
+              <span class="admin-row__title">lee@company.com</span>
+              <span class="admin-row__meta mono">joined 03/19/2026</span>
+            </div>
+            <span class="pill pill--closed">User</span>
+            <div class="admin-row__actions">
+              <button class="btn-link">⬆ Make admin</button>
+              <button class="btn-link danger">🗑 Delete</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <span class="mono">Poll &amp; Survey Builder</span><span>·</span><span>Live results in real time</span><span>·</span><span>AMD201</span>
+  </footer>
+</div>
+</body>
+</html>

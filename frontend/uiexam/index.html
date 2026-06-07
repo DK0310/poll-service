@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PollBuilder — Wireframe Kit</title>
+<link rel="stylesheet" href="css/wireframe.css">
+<style>
+  body { overflow: hidden; }
+  body::before { display: none; }
+  .kit { display: grid; grid-template-columns: 280px 1fr; height: 100vh; }
+  .nav { background: #1b1b2e; color: #cfcfe0; padding: 20px 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+  .nav .brand { color: #fff; padding: 4px 8px; }
+  .nav .brand__mark { background: #fff; color: #1b1b2e; }
+  .nav .brand__text { color: #fff; }
+  .nav .sub { font-size: 11px; color: #9a9aae; padding: 6px 8px 14px; }
+  .nav .grp { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #8a8aa6; margin: 16px 8px 6px; }
+  .nav a { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 10px; font-size: 14px; color: #c4c4da; cursor: pointer; font-family: var(--font-display); font-weight: 500; }
+  .nav a:hover { background: rgba(255,255,255,.08); color: #fff; text-decoration: none; }
+  .nav a.active { background: var(--rose); color: #fff; box-shadow: var(--glow); }
+  .nav a .num { width: 22px; height: 22px; border-radius: 6px; background: rgba(255,255,255,.12); font-size: 11px; display: flex; align-items: center; justify-content: center; color: #fff; flex: none; font-family: var(--font-mono); }
+  .nav a.active .num { background: rgba(255,255,255,.28); }
+  .stagewrap { display: flex; flex-direction: column; min-width: 0; }
+  .stagebar { height: 50px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 14px; padding: 0 18px; background: rgba(255,255,255,.7); }
+  .stagebar .url { flex: 1; height: 32px; border-radius: 999px; background: var(--bg); border: 1px solid var(--border); display: flex; align-items: center; padding: 0 14px; font-size: 13px; color: var(--muted); font-family: var(--font-mono); }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  iframe { flex: 1; width: 100%; border: 0; background: var(--bg); }
+  .openbtn { font-size: 13px; color: var(--blue); font-weight: 600; font-family: var(--font-display); }
+  .route { font-size: 11px; color: #c08a9a; font-family: var(--font-mono); margin-left: auto; }
+</style>
+</head>
+<body>
+<div class="kit">
+  <aside class="nav">
+    <a class="brand">
+      <span class="brand__mark ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="m9 12 2 2 4-4"/><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5z"/><path d="M22 19H2"/></svg></span>
+      <span class="brand__text">PollBuilder</span>
+    </a>
+    <div class="sub">Wireframe kit · aligned to your React app</div>
+
+    <div class="grp">Public</div>
+    <a data-src="pages/home.html"><span class="num">1</span> Main page <span class="route">/ landing</span></a>
+    <a data-src="pages/create.html"><span class="num">2</span> Create poll <span class="route">/create</span></a>
+    <a data-src="pages/vote.html"><span class="num">3</span> Vote <span class="route">/poll/:code</span></a>
+    <a data-src="pages/results.html"><span class="num">4</span> Live results <span class="route">…/results</span></a>
+
+    <div class="grp">Creator (auth)</div>
+    <a data-src="pages/analytics.html"><span class="num">5</span> Analytics <span class="route">…/analytics</span></a>
+    <a data-src="pages/my-polls.html"><span class="num">6</span> My polls <span class="route">/my-polls</span></a>
+
+    <div class="grp">Admin (role)</div>
+    <a data-src="pages/admin.html"><span class="num">7</span> Admin dashboard <span class="route">/admin</span></a>
+
+    <div class="grp">Account</div>
+    <a data-src="pages/login.html"><span class="num">8</span> Log in <span class="route">/login</span></a>
+    <a data-src="pages/register.html"><span class="num">9</span> Register <span class="route">/register</span></a>
+
+    <div style="margin-top:auto; padding:14px 8px 4px; font-size:12px; color:#c08a9a;">
+      Your app's screens, restyled in the <b style="color:#fff;">Mentimeter</b> look. Open ↗ to view a screen standalone.
+    </div>
+  </aside>
+
+  <section class="stagewrap">
+    <div class="stagebar">
+      <span class="dot" style="background:#ff5f57"></span>
+      <span class="dot" style="background:#febc2e"></span>
+      <span class="dot" style="background:#28c840"></span>
+      <div class="url" id="url">pages/home.html</div>
+      <a class="openbtn" id="open" target="_blank">Open ↗</a>
+    </div>
+    <iframe id="frame" src="pages/home.html"></iframe>
+  </section>
+</div>
+
+<script>
+  const links = document.querySelectorAll('.nav a[data-src]');
+  const frame = document.getElementById('frame');
+  const url = document.getElementById('url');
+  const open = document.getElementById('open');
+  function select(a){
+    links.forEach(l => l.classList.remove('active'));
+    a.classList.add('active');
+    const src = a.dataset.src;
+    frame.src = src; url.textContent = src; open.href = src;
+  }
+  links.forEach(a => a.addEventListener('click', () => select(a)));
+  links[0].classList.add('active');
+  open.href = 'pages/home.html';
+</script>
+</body>
+</html>

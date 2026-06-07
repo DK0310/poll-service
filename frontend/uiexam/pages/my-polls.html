@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PollBuilder — My polls (wireframe)</title>
+<link rel="stylesheet" href="../css/wireframe.css">
+</head>
+<body>
+<div class="app-shell">
+  <header class="app-header"><div class="app-header__inner">
+    <a class="brand">
+      <span class="brand__mark ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="m9 12 2 2 4-4"/><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5z"/><path d="M22 19H2"/></svg></span>
+      <span class="brand__text h-gradient">PollBuilder</span>
+    </a>
+    <nav class="app-nav">
+      <a class="nav-link">Create</a>
+      <a class="nav-link nav-link--active">My Polls</a>
+      <a class="nav-link">Admin</a>
+      <button class="nav-link">Log out</button>
+    </nav>
+  </div></header>
+
+  <main>
+    <div class="page">
+      <h1>My polls</h1>
+
+      <div class="poll-list">
+        <!-- open poll -->
+        <article class="card poll-card">
+          <div class="poll-card__head">
+            <h3>How did this sprint feel?</h3>
+            <span class="pill pill--open">Open</span>
+          </div>
+          <p class="poll-card__meta mono">/poll/7fGh2 · 4 options</p>
+          <div class="poll-card__actions">
+            <div class="poll-card__nav">
+              <a class="poll-action">▦ Results</a>
+              <a class="poll-action">📈 Analytics</a>
+              <a class="poll-action">↗ Vote</a>
+            </div>
+            <div class="poll-card__manage">
+              <button class="btn-link">🔒 Close</button>
+              <button class="btn-link danger">🗑 Delete</button>
+            </div>
+          </div>
+        </article>
+
+        <!-- closed poll -->
+        <article class="card poll-card">
+          <div class="poll-card__head">
+            <h3>Should we adopt trunk-based dev?</h3>
+            <span class="pill pill--closed">Closed</span>
+          </div>
+          <p class="poll-card__meta mono">/poll/k9Lm3 · 2 options</p>
+          <div class="poll-card__actions">
+            <div class="poll-card__nav">
+              <a class="poll-action">▦ Results</a>
+              <a class="poll-action">📈 Analytics</a>
+              <a class="poll-action">↗ Vote</a>
+            </div>
+            <div class="poll-card__manage">
+              <button class="btn-link danger">🗑 Delete</button>
+            </div>
+          </div>
+        </article>
+
+        <!-- open-text poll -->
+        <article class="card poll-card">
+          <div class="poll-card__head">
+            <h3>What should we improve?</h3>
+            <span class="pill pill--open">Open</span>
+          </div>
+          <p class="poll-card__meta mono">/poll/q2Wp8 · open text</p>
+          <div class="poll-card__actions">
+            <div class="poll-card__nav">
+              <a class="poll-action">▦ Results</a>
+              <a class="poll-action">📈 Analytics</a>
+              <a class="poll-action">↗ Vote</a>
+            </div>
+            <div class="poll-card__manage">
+              <button class="btn-link">🔒 Close</button>
+              <button class="btn-link danger">🗑 Delete</button>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <!-- empty state (for reference) -->
+      <p class="muted" style="text-align:center; font-size:12px; letter-spacing:.06em; text-transform:uppercase; margin:32px 0 12px;">— empty state —</p>
+      <div class="card empty-state">
+        <p class="muted">You haven't created any polls yet.</p>
+        <a class="btn">＋ Create your first poll</a>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <span class="mono">Poll &amp; Survey Builder</span><span>·</span><span>Live results in real time</span><span>·</span><span>AMD201</span>
+  </footer>
+</div>
+</body>
+</html>

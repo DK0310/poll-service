@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PollBuilder — Vote (wireframe)</title>
+<link rel="stylesheet" href="../css/wireframe.css">
+</head>
+<body>
+<div class="app-shell">
+  <header class="app-header"><div class="app-header__inner">
+    <a class="brand">
+      <span class="brand__mark ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="m9 12 2 2 4-4"/><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5z"/><path d="M22 19H2"/></svg></span>
+      <span class="brand__text h-gradient">PollBuilder</span>
+    </a>
+    <nav class="app-nav">
+      <a class="nav-link">Create</a>
+      <a class="nav-link">Log in</a>
+      <a class="nav-link nav-link--cta">Register</a>
+    </nav>
+  </div></header>
+
+  <main>
+    <div class="page">
+
+      <!-- primary: single-choice vote -->
+      <div class="card">
+        <h1>How did this sprint feel?</h1>
+
+        <form class="vote-form" onsubmit="return false">
+          <div class="vote-options">
+            <label class="vopt"><span class="vopt__text">Great</span><span class="check"></span></label>
+            <label class="vopt vopt--on"><span class="vopt__text">Good</span><span class="check">✓</span></label>
+            <label class="vopt"><span class="vopt__text">Meh</span><span class="check"></span></label>
+            <label class="vopt"><span class="vopt__text">Bad</span><span class="check"></span></label>
+          </div>
+          <button type="submit" class="btn btn--block">Cast your vote</button>
+        </form>
+
+        <div class="vote-share">
+          <p class="muted share-hint">Share this poll to collect votes:</p>
+          <div class="share-link">
+            <span class="share-link__url">https://pollbuilder.app/poll/7fGh2</span>
+            <button class="btn btn-outline share-link__copy">Copy</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Q&A panel (appears under every vote/results page) -->
+      <section class="qanda card">
+        <h2 class="qanda__head">
+          <span class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          Q&amp;A
+        </h2>
+        <form class="qanda-form" onsubmit="return false">
+          <input type="text" placeholder="Ask a question…">
+          <button class="btn qanda-form__send">➤ Ask</button>
+        </form>
+        <ul class="qanda-list">
+          <li class="qanda-item qanda-item--pinned">
+            <button class="qanda__upvote">▲<span class="tnum">14</span></button>
+            <span class="qanda-text"><span class="pin-flag">📌 Pinned</span>Will the recording be shared afterwards?</span>
+            <button class="btn-link qanda__pin">Unpin</button>
+          </li>
+          <li class="qanda-item">
+            <button class="qanda__upvote">▲<span class="tnum">8</span></button>
+            <span class="qanda-text">Can we extend the deadline by a week?</span>
+            <button class="btn-link qanda__pin">Pin</button>
+          </li>
+          <li class="qanda-item">
+            <button class="qanda__upvote">▲<span class="tnum">3</span></button>
+            <span class="qanda-text">What tooling did the infra team adopt?</span>
+            <button class="btn-link qanda__pin">Pin</button>
+          </li>
+        </ul>
+      </section>
+
+      <!-- alternate states + other question types -->
+      <p class="muted" style="text-align:center; font-size:12px; letter-spacing:.06em; text-transform:uppercase; margin:32px 0 12px;">— other question types &amp; states —</p>
+
+      <!-- Yes / No -->
+      <div class="card">
+        <h1>Should we adopt trunk-based dev?</h1>
+        <form class="vote-form" onsubmit="return false">
+          <div class="vote-yesno">
+            <button type="button" class="yesno-block yesno-block--on">Yes</button>
+            <button type="button" class="yesno-block">No</button>
+          </div>
+          <button type="submit" class="btn btn--block">Cast your vote</button>
+        </form>
+      </div>
+
+      <!-- Rating 1–5 -->
+      <div class="card">
+        <h1>Rate this sprint's process</h1>
+        <form class="vote-form" onsubmit="return false">
+          <div class="rating-row">
+            <button type="button" class="rating-chip">1</button>
+            <button type="button" class="rating-chip">2</button>
+            <button type="button" class="rating-chip">3</button>
+            <button type="button" class="rating-chip rating-chip--on">4</button>
+            <button type="button" class="rating-chip">5</button>
+          </div>
+          <button type="submit" class="btn btn--block">Cast your vote</button>
+        </form>
+      </div>
+
+      <!-- Open text -->
+      <div class="card">
+        <h1>What should we improve?</h1>
+        <form class="vote-form" onsubmit="return false">
+          <label class="field-label">Your answer</label>
+          <textarea class="text-answer" placeholder="Type your answer…"></textarea>
+          <button type="submit" class="btn btn--block">Submit answer</button>
+        </form>
+      </div>
+
+      <!-- notices -->
+      <div class="card">
+        <h1>Closed / already-voted notices</h1>
+        <p class="notice notice--closed">🔒 This poll is closed.</p>
+        <p class="notice notice--voted">✓ You've already voted on this poll. <a>View live results →</a></p>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <span class="mono">Poll &amp; Survey Builder</span><span>·</span><span>Live results in real time</span><span>·</span><span>AMD201</span>
+  </footer>
+</div>
+</body>
+</html>

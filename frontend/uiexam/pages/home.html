@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PollBuilder — Main page (wireframe)</title>
+<link rel="stylesheet" href="../css/wireframe.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ===== header ===== -->
+  <header class="app-header"><div class="lp-wrap app-header__inner" style="max-width:1120px;">
+    <a class="brand">
+      <span class="brand__mark ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="m9 12 2 2 4-4"/><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5z"/><path d="M22 19H2"/></svg></span>
+      <span class="brand__text">PollBuilder</span>
+    </a>
+    <nav class="app-nav">
+      <a class="nav-link">Features</a>
+      <a class="nav-link">How it works</a>
+      <a class="nav-link">Log in</a>
+      <a class="nav-link nav-link--cta">Get started</a>
+    </nav>
+  </div></header>
+
+  <main class="lp">
+
+    <!-- ===== hero ===== -->
+    <section class="hero"><div class="lp-wrap">
+      <div class="hero-grid">
+        <div>
+          <span class="chip chip--pink">★ Real-time polls &amp; surveys</span>
+          <h1>Create a poll.<br>Watch votes update <span class="h-gradient">live.</span></h1>
+          <p class="lead">Build a poll in seconds, share a short link, and see results stream in on a live bar chart — no page refresh, no account needed to vote.</p>
+          <div class="hero-cta">
+            <a class="btn btn-lg" style="padding:14px 26px;">Create a poll — free</a>
+            <a class="btn-outline" style="padding:14px 22px;">See how it works</a>
+          </div>
+          <p class="hero-note">Free to use · Sign in only to create &amp; manage polls.</p>
+        </div>
+
+        <!-- faux live-results preview -->
+        <div class="preview-card">
+          <div class="preview-top">
+            <strong style="font-size:15px;">How did this sprint feel?</strong>
+            <span class="live-badge">Live</span>
+          </div>
+          <div class="kpi" style="margin-bottom:16px;"><span class="kpi__num h-gradient tnum">124</span><span class="kpi__label">votes</span></div>
+          <div class="bar-list">
+            <div class="bar-row">
+              <div class="bar-row__head"><span class="bar-row__label">Good <span class="lead-tag">★ Leading</span></span><span class="bar-row__fig">55</span></div>
+              <div class="bar-track"><div class="bar-fill bar-fill--lead" style="width:100%"></div></div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-row__head"><span class="bar-row__label">Great</span><span class="bar-row__fig">42</span></div>
+              <div class="bar-track"><div class="bar-fill bar-fill--blue" style="width:76%"></div></div>
+            </div>
+            <div class="bar-row">
+              <div class="bar-row__head"><span class="bar-row__label">Meh</span><span class="bar-row__fig">18</span></div>
+              <div class="bar-track"><div class="bar-fill bar-fill--violet" style="width:33%"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="logos">
+        <span class="logo-ph"></span><span class="logo-ph"></span><span class="logo-ph"></span><span class="logo-ph"></span><span class="logo-ph"></span>
+      </div>
+    </div></section>
+
+    <!-- ===== features ===== -->
+    <section class="lp-section lp-section--alt" id="features"><div class="lp-wrap">
+      <h2>Everything you need to run a live poll</h2>
+      <p class="sub">All the features built into PollBuilder — pick a question type, share, and engage.</p>
+
+      <div class="feat-grid">
+        <div class="feat">
+          <div class="feat__ic">▦</div>
+          <h3>Four question types</h3>
+          <p>Multiple choice, Yes / No, Rating 1–5, and Open text — with 2–6 options where it counts.</p>
+        </div>
+        <div class="feat">
+          <div class="feat__ic">⚡</div>
+          <h3>Live results</h3>
+          <p>Bar charts update the instant anyone votes, streamed over WebSockets (SignalR).</p>
+        </div>
+        <div class="feat">
+          <div class="feat__ic">🔗</div>
+          <h3>Share a short link</h3>
+          <p>Every poll gets a 5-character code like <span class="mono">/poll/7fGh2</span>. Vote once per browser, no login.</p>
+        </div>
+        <div class="feat">
+          <div class="feat__ic">💬</div>
+          <h3>Anonymous Q&amp;A</h3>
+          <p>The audience asks questions and upvotes; the host can pin the best — all live.</p>
+        </div>
+        <div class="feat">
+          <div class="feat__ic">📊</div>
+          <h3>Creator analytics</h3>
+          <p>Votes over time, peak voting minute, and the top option for every poll you own.</p>
+        </div>
+        <div class="feat">
+          <div class="feat__ic">⏲️</div>
+          <h3>Auto-close on expiry</h3>
+          <p>Set a poll to close in an hour, a day, or a week — final results lock automatically.</p>
+        </div>
+      </div>
+    </div></section>
+
+    <!-- ===== how it works ===== -->
+    <section class="lp-section"><div class="lp-wrap">
+      <h2>How it works</h2>
+      <p class="sub">From idea to live results in three steps.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step__n">1</div>
+          <h3>Create</h3>
+          <p>Sign in, write your question, pick a type, add options and an optional expiry.</p>
+        </div>
+        <div class="step">
+          <div class="step__n">2</div>
+          <h3>Share</h3>
+          <p>Send the short <span class="mono">/poll/code</span> link. Anyone can vote — no account required.</p>
+        </div>
+        <div class="step">
+          <div class="step__n">3</div>
+          <h3>Watch live</h3>
+          <p>Results and Q&amp;A update in real time. Dig into analytics when you're done.</p>
+        </div>
+      </div>
+    </div></section>
+
+    <!-- ===== dark CTA band ===== -->
+    <section class="cta-band"><div class="lp-wrap">
+      <h2>Ready to run your first poll?</h2>
+      <p>Free to use. Create an account and share a link in under a minute.</p>
+      <a class="btn btn-lg" style="padding:14px 28px;">Create a poll — free</a>
+    </div></section>
+
+  </main>
+
+  <!-- ===== footer ===== -->
+  <footer class="lp-foot"><div class="lp-wrap">
+    <div class="foot-grid">
+      <div>
+        <a class="brand"><span class="brand__mark ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="m9 12 2 2 4-4"/><path d="M5 7c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2v12H5z"/><path d="M22 19H2"/></svg></span><span class="brand__text">PollBuilder</span></a>
+        <p style="margin-top:14px; font-size:13px; color:#8a8aa6; max-width:240px;">Real-time polls &amp; surveys with live results. An AMD201 microservices project.</p>
+      </div>
+      <div><h4>Product</h4><a>Create a poll</a><a>Live results</a><a>Analytics</a><a>Q&amp;A</a></div>
+      <div><h4>Question types</h4><a>Multiple choice</a><a>Yes / No</a><a>Rating 1–5</a><a>Open text</a></div>
+      <div><h4>Account</h4><a>Log in</a><a>Register</a><a>My polls</a></div>
+      <div><h4>Project</h4><a>Architecture</a><a>GitHub</a><a>Live demo</a></div>
+    </div>
+    <div class="lp-foot__legal">
+      <span class="mono">Poll &amp; Survey Builder · AMD201</span>
+      <span>Live results in real time · © 2026</span>
+    </div>
+  </div></footer>
+
+</div>
+</body>
+</html>
