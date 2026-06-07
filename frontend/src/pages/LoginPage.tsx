@@ -66,6 +66,11 @@ export function LoginPage() {
             {loading && <Loader2 size={18} strokeWidth={2.25} className="spin" aria-hidden="true" />}
             {loading ? 'Logging in…' : 'Log in'}
           </button>
+          {loading && (
+            <p className="muted auth-hint">
+              First sign-in can take up to a minute while the free-tier server wakes up.
+            </p>
+          )}
           {error && <p className="error" role="alert">{error}</p>}
         </form>
 

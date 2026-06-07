@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, NavLink, Link, Route, Routes, useNavigate } from 'react-router-dom';
 import { Vote, LogOut, ShieldCheck } from 'lucide-react';
 import { CreatePollPage } from './pages/CreatePollPage';
@@ -11,24 +11,16 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { RequireAuth } from './components/RequireAuth';
 import { RequireAdmin } from './components/RequireAdmin';
-import { AUTH_CHANGED, clearToken, isAuthenticated, isAdmin } from './auth/session';
+import { useAuthStatus } from './hooks/useAuthStatus';
+import { warmBackend } from './api/warmup';
+import { clearToken } from './auth/session';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   isActive ? 'nav-link nav-link--active' : 'nav-link';
 
 function Nav() {
   const navigate = useNavigate();
-  const [authed, setAuthed] = useState(isAuthenticated());
-  const [admin, setAdmin] = useState(isAdmin());
-
-  useEffect(() => {
-    const sync = () => {
-      setAuthed(isAuthenticated());
-      setAdmin(isAdmin());
-    };
-    window.addEventListener(AUTH_CHANGED, sync);
-    return () => window.removeEventListener(AUTH_CHANGED, sync);
-  }, []);
+  const { authed, isAdmin: admin } = useAuthStatus();
 
   const logout = () => {
     clearToken();
@@ -108,6 +100,11 @@ function Footer() {
 }
 
 export default function App() {
+  // Wake the free-tier backend as the app loads so the first action isn't stuck on cold start.
+  useEffect(() => {
+    warmBackend();
+  }, []);
+
   return (
     <BrowserRouter>
       <div className="app-shell">

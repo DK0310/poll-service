@@ -4,6 +4,7 @@ import { usePollInfo } from '../hooks/usePollInfo';
 import { useVote } from '../hooks/useVote';
 import { VoteForm } from '../components/VoteForm';
 import { QandAPanel } from '../components/QandAPanel';
+import { ShareLink } from '../components/ShareLink';
 import { getUserId, isAdmin } from '../auth/session';
 
 export function VotePage() {
@@ -79,6 +80,11 @@ export function VotePage() {
             )}
           </>
         )}
+
+        <div className="vote-share">
+          <p className="muted share-hint">Share this poll to collect votes:</p>
+          <ShareLink code={code} />
+        </div>
       </div>
 
       <QandAPanel code={code} canModerate={canModerate} />

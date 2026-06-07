@@ -4,15 +4,17 @@ import { Check, ArrowRight, BarChart3, LogIn } from 'lucide-react';
 import { PollForm } from '../components/PollForm';
 import { ShareLink } from '../components/ShareLink';
 import { useCreatePoll } from '../hooks/useCreatePoll';
-import { isAuthenticated } from '../auth/session';
+import { useAuthStatus } from '../hooks/useAuthStatus';
 import type { PollInfo, QuestionType } from '../types/poll.types';
 
 export function CreatePollPage() {
   const { createPoll, loading, error } = useCreatePoll();
+  const { authed } = useAuthStatus();
   const [result, setResult] = useState<PollInfo | null>(null);
 
   // Creating a poll requires an account (the API rejects anonymous creates with 401).
-  if (!isAuthenticated()) {
+  // useAuthStatus is reactive, so logging out here flips straight to the CTA.
+  if (!authed) {
     return (
       <div className="page">
         <div className="card empty-state">

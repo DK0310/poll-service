@@ -4,6 +4,7 @@ import { useLiveResults } from '../hooks/useLiveResults';
 import { usePollInfo } from '../hooks/usePollInfo';
 import { LiveBarChart } from '../components/LiveBarChart';
 import { QandAPanel } from '../components/QandAPanel';
+import { ShareLink } from '../components/ShareLink';
 import { getUserId, isAdmin } from '../auth/session';
 
 export function ResultsPage() {
@@ -73,7 +74,10 @@ export function ResultsPage() {
         )}
 
         <div className="results-foot">
-          <p className="muted share-hint">Share this page — results update in real time.</p>
+          <div className="results-share">
+            <p className="muted share-hint">Share this poll — results update in real time.</p>
+            <ShareLink code={code} />
+          </div>
           {canModerate && (
             <Link to={`/poll/${code}/analytics`} className="btn-outline">
               <BarChart3 size={18} strokeWidth={2.25} aria-hidden="true" /> View analytics

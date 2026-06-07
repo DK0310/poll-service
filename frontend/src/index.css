@@ -1124,6 +1124,33 @@ textarea {
 .results-foot .btn-outline {
   text-decoration: none;
 }
+.results-share {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.results-share .share-hint {
+  margin-bottom: var(--space-sm);
+}
+
+.auth-hint {
+  font-size: 13px;
+  text-align: center;
+  margin: var(--space-sm) 0 0;
+}
+
+/* Share row on the vote page */
+.vote-share {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--border);
+}
+.vote-share .share-hint {
+  margin-bottom: var(--space-sm);
+}
+.vote-share .share-link,
+.results-share .share-link {
+  margin-bottom: 0;
+}
 
 /* ── Analytics (Phase R5) ────────────────────────────────── */
 .analytics-head {
