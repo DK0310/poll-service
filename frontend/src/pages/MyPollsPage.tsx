@@ -66,7 +66,7 @@ export function MyPollsPage() {
       ) : polls.length === 0 ? (
         <div className="card empty-state">
           <p className="muted">You haven’t created any polls yet.</p>
-          <Link to="/" className="btn">
+          <Link to="/create" className="btn">
             <Plus size={18} strokeWidth={2.25} aria-hidden="true" /> Create your first poll
           </Link>
         </div>

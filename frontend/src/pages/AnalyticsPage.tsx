@@ -34,7 +34,7 @@ export function AnalyticsPage() {
         <div className="card">
           <h1>Poll not found</h1>
           <p className="muted">That poll code doesn’t exist or was removed.</p>
-          <Link to="/" className="btn">Create a poll</Link>
+          <Link to="/create" className="btn">Create a poll</Link>
         </div>
       </div>
     );
