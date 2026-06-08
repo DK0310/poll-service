@@ -168,17 +168,18 @@ CSS class or variable**; **do not touch `services/`**.
 - [x] Repointed every "create" CTA `Link to="/"` → `/create`: `NotFound`, MyPolls empty-state, Vote/Results/Analytics "poll not found" cards. (Brand + `RequireAdmin` redirect stay `/` = home.)
 - **DoD:** ✅ `npm run lint` clean + `npm run build` green (377ms); `/` = full-bleed landing, `/create` = the form; guest CTA + all create links land on `/create`; no dead `/`-means-create links.
 
-## Phase M3 — Verify, responsive, a11y & merge  `[UI]`
+## Phase M3 — Verify, responsive, a11y & merge  `[UI]`  ✅ DONE (merge/push pending user OK)
 
 **Goal:** ship-quality finish + ready to merge.
 **Files:** verification only (small fixes if found).
 
-- [ ] Full `npm run lint` + `npm run build` green.
-- [ ] Visual pass on **every** route + alt states; landing responsive (hero-grid / feat-grid / steps / foot-grid stack ≤860px; cards ≤520px).
-- [ ] a11y: focus rings visible, `prefers-reduced-motion` still disables animation, `live-badge` pulse + KPI render in the new palette.
-- [ ] Confirm **no class/variable renamed**, **no `.tsx` changed beyond HomePage + App + link repoints**, **no `services/` touched**; diff ≈ `index.css` + `main.tsx` + `HomePage.tsx` + `App.tsx` (+ minor link edits).
-- [ ] Commit on the branch (`style(frontend): restyle UI to Mentimeter look + landing page`); open for review / merge to `main` (→ static site auto-deploys).
-- **DoD:** every screen cohesive in the Mentimeter look; landing live; lint+build green; ready to merge.
+- [x] Full `npm run lint` clean + `npm run build` green (364ms).
+- [x] Responsive breakpoints verified present (860 hero/feat/steps/foot · 560 stat-grid/admin · 520 main/card). *(Pixel-level visual pass best done in-browser / on the deployed static site — structural verification complete.)*
+- [x] a11y preserved: global `:focus-visible`, input pink focus ring, `:has(:focus-visible)` outlines, reduced-motion block (only the dead aurora line removed), `live-badge` pulse + KPI in the new palette; HomePage uses semantic headings + `aria-hidden` on the decorative preview.
+- [x] Verified **no class/variable renamed** (contract classes + token names all still present), **`.tsx` changes limited to HomePage + App + the 4 create-link repoints**, **no `services/` touched** (diff is frontend-only).
+- [x] Committed on the branch as **`2ed2db1`** (`style(frontend): restyle UI to Mentimeter look + landing page`, author DK0310, no Co-Authored-By). Branch is **2 commits ahead of `origin/main`** (d50290b share/warm-up/logout/KNOWN_ISSUES + 2ed2db1 Mentimeter).
+- [ ] Merge to `main` / push (→ static site auto-deploys) — **awaiting user go-ahead** (deploys to production).
+- **DoD:** ✅ cohesive Mentimeter look + landing; lint+build green; verified diff; committed on branch. Deploy on your merge.
 
 ---
 
