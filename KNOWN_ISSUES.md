@@ -11,9 +11,10 @@ record-keeping first.
 | ID | Title | Area | Severity | Status |
 |---|---|---|:--:|:--:|
 | [ISSUE-001](#issue-001--expired-polls-do-not-auto-close) | Expired polls do not auto-close | Poll API · expiry | High | **Fixed** |
-| [ISSUE-002](#issue-002--my-polls-navigation-back-from-analytics-lands-on-results) | "Back" from Analytics lands on Results, not My Polls | Frontend · navigation | Low | Open |
-| [ISSUE-003](#issue-003--vote-page-has-no-in-page-back-return-control) | Vote page has no in-page back / return control | Frontend · navigation | Low | Open |
-| [ISSUE-004](#issue-004--landing-page-renders-dark-in-dark-mode-low-contrast) | Landing page renders dark in dark mode (low contrast) | Frontend · theming | Low | Open |
+| [ISSUE-002](#issue-002--my-polls-navigation-back-from-analytics-lands-on-results) | "Back" from Analytics lands on Results, not My Polls | Frontend · navigation | Low | **Fixed** |
+| [ISSUE-003](#issue-003--vote-page-has-no-in-page-back-return-control) | Vote page has no in-page back / return control | Frontend · navigation | Low | **Fixed** |
+| [ISSUE-004](#issue-004--landing-page-renders-dark-in-dark-mode-low-contrast) | Landing page renders dark in dark mode (low contrast) | Frontend · theming | Low | **Fixed** |
+| [ISSUE-005](#issue-005--dark-mode-form-fields-show-invisible-text-light-field--white-text) | Dark mode: form fields show invisible text (light field + white text) | Frontend · theming | Medium | **Fixed** |
 
 ---
 
@@ -80,7 +81,7 @@ tests `GetByCode_LazilyClosesExpiredOpenPoll` + `GetByCode_DoesNotPersist_WhenNo
 |---|---|
 | **Area** | Frontend — My Polls / PollCard / page navigation |
 | **Severity** | Low (navigation annoyance; workaround: press Back twice) |
-| **Status** | Open |
+| **Status** | **Fixed** (2026-06-11) |
 | **Reported** | 2026-06-07 |
 | **Environment** | Production (Render) / frontend |
 
@@ -110,8 +111,24 @@ Two related problems on the **My Polls** dashboard:
 - Fix directions to weigh: link **Analytics directly** from the My Polls card, and/or make the
   Analytics "back" return to its origin (My Polls), and **clarify/relabel** the card's buttons.
 
-### Fix
-Pending — **do not change code yet** (awaiting go-ahead).
+### Root cause (confirmed by code review)
+Two things, only one of which was still a real defect:
+1. **Card buttons** — already resolved by the Mentimeter restyle: `PollCard` now shows distinct,
+   labelled actions (**Results / Analytics / Vote**, each with an icon), so "which one did I click"
+   is no longer ambiguous.
+2. **The "Back" defect** — the Analytics page's in-page **"Back to live results"** link was
+   **hardcoded** to `/poll/{code}/results` regardless of origin. Reaching Analytics from **My Polls**
+   (a direct `PollCard` link, so history was `My Polls → Analytics`) and then clicking that in-page
+   "back" pushed you to **Results** — a page you'd never visited — and a second Back was needed to
+   return to My Polls.
+
+### Fix (2026-06-11)
+The Analytics "back" link now returns to **where you came from**. `PollCard`'s Analytics link tags its
+origin (`state={{ from: 'my-polls' }}`), and `AnalyticsPage` reads `location.state` to pick the target:
+from My Polls → **"Back to my polls"** → `/my-polls`; otherwise (from the Results page, or a direct
+URL) it keeps the default **"Back to live results"** → `/poll/{code}/results`. Files:
+[`PollCard.tsx`](frontend/src/components/PollCard.tsx), [`AnalyticsPage.tsx`](frontend/src/pages/AnalyticsPage.tsx).
+**Verified:** `npm run lint` clean + `vite build` green. Frontend-only; no backend/route/ARCHITECTURE change.
 
 ---
 
@@ -121,7 +138,7 @@ Pending — **do not change code yet** (awaiting go-ahead).
 |---|---|
 | **Area** | Frontend — VotePage (`/poll/:code`) navigation |
 | **Severity** | Low (navigation convenience; workaround: browser/nav controls) |
-| **Status** | Open |
+| **Status** | **Fixed** (2026-06-11) |
 | **Reported** | 2026-06-08 |
 | **Environment** | Production (Render) / frontend |
 
@@ -148,8 +165,14 @@ home / back to the previous screen.
   link is more predictable than history-based back.
 - Consider the same affordance on the Results page for consistency (not requested — confirm scope).
 
-### Fix
-Pending — **do not change code yet** (awaiting go-ahead).
+### Fix (2026-06-11)
+Added an in-page **"← Back to home"** link at the top of the vote page, with a **fixed `/` target**
+(more predictable than history-based `navigate(-1)` for a voter who arrived via a share link/QR and has
+no in-app history). Reuses the `btn-outline` look via a small new `.page-back` style (mirrors the
+existing `analytics-back` affordance, top-positioned). Files:
+[`VotePage.tsx`](frontend/src/pages/VotePage.tsx), [`index.css`](frontend/src/index.css) (`.page-back`).
+Results-page affordance left out of scope (not requested). **Verified:** `npm run lint` clean +
+`vite build` green. Frontend-only; no ARCHITECTURE change.
 
 ---
 
@@ -159,7 +182,7 @@ Pending — **do not change code yet** (awaiting go-ahead).
 |---|---|
 | **Area** | Frontend — theming (dark mode) / landing page (`/`) |
 | **Severity** | Low (cosmetic; dark mode only; affects the marketing landing) |
-| **Status** | Open |
+| **Status** | **Fixed** (2026-06-11) |
 | **Reported** | 2026-06-11 |
 | **Environment** | Local dev (frontend) — Phase 17 dark mode |
 
@@ -193,5 +216,74 @@ content is **barely readable**. The intent was: app pages dark, the marketing la
 - Scope question to confirm when fixing: should the **nav/header** also switch to a light treatment on
   the landing, or is a dark nav above the light landing acceptable?
 
-### Fix
-Pending — **do not change code yet** (awaiting go-ahead).
+### Root cause (confirmed by code review)
+`main.lp` (`.lp main, main.lp`) is `display:block; padding:0` with **no `background`** — it's
+transparent. The `:root[data-theme='dark'] main.lp` block re-asserted the light **tokens** (`--bg`,
+`--ink`, …) so content *colors* were right, but with nothing painting the surface, the dark `body`
+(`background: var(--bg)`, dark) showed through behind it. The hero paints its own light gradient and
+`.lp-section--alt` is `#fff`, but plain `.lp-section`s are transparent → dark backdrop, navy-on-dark.
+
+### Fix (2026-06-11)
+Added `background: var(--bg);` to `:root[data-theme='dark'] main.lp` — since `--bg` is re-asserted to
+`#f4f4f7` in that same block, the whole landing surface now paints light and the transparent sections
+read against it. File: [`index.css`](frontend/src/index.css). **Scope decision:** the shared dark
+nav/header sitting above the light landing is left as-is (a dark nav over light content is a normal,
+intentional-looking pattern — not the reported readability defect). **Verified:** `npm run lint` clean
++ `vite build` green. Matches the documented "landing stays light by design" decision in
+[ARCHITECTURE.md](ARCHITECTURE.md) (no ARCHITECTURE change needed).
+
+---
+
+## ISSUE-005 — Dark mode: form fields show invisible text (light field + white text)
+
+| Field | Value |
+|---|---|
+| **Area** | Frontend — theming (dark mode) / form inputs |
+| **Severity** | Medium (input is unreadable in dark mode; workaround: use light mode) |
+| **Status** | **Fixed** (2026-06-11) |
+| **Reported** | 2026-06-11 |
+| **Environment** | Local dev (frontend) — Phase 17 dark mode |
+
+### Summary
+With **dark mode** on, typing into some form fields shows **nothing** — the text you type is white
+**and** the field background stays light, so it's white-on-white (invisible). The placeholder also
+reads as near-white/very faint on the same light field.
+
+### Steps to reproduce
+1. Toggle **dark mode** (sun/moon in the nav).
+2. Go to **Login** or **Register** (or an OpenText poll's answer box) and type into a field.
+
+### Expected
+- In dark mode the field has a **dark background** and **light text** (or any combination with real
+  contrast), and the placeholder is clearly dimmer than typed text but still legible.
+
+### Actual
+- Typed text is white on a **light/default field background** → invisible. Placeholder is a faint
+  dusty-rose that looks near-white on the light field.
+
+### Notes / areas to investigate (when fixing — not yet confirmed)
+- The Phase 17 dark block only remaps fields that carry the **`.input` class**
+  (`:root[data-theme='dark'] .input { background: var(--surface); }` in [index.css](frontend/src/index.css)),
+  and `.input` text is `color: var(--ink)` (white in dark). That pairing is fine.
+- **The broken fields don't use `.input`:**
+  - [LoginPage.tsx](frontend/src/pages/LoginPage.tsx) / [RegisterPage.tsx](frontend/src/pages/RegisterPage.tsx)
+    render **bare `<input>`** (no class) — so they get **no dark background override**; the browser's
+    default light field background stays, while text inherits the dark-mode white `--ink` → white-on-white.
+  - [VoteForm.tsx](frontend/src/components/VoteForm.tsx) OpenText box uses **`className="text-answer"`**,
+    also outside the `.input` dark override.
+- `::placeholder { color: #c89aa6; }` (line ~307) is a **fixed** dusty-rose, never themed — on a light
+  field it reads near-white.
+- Likely fix: theme the **element selectors** (`input, textarea, select`) under
+  `:root[data-theme='dark']` (dark `background` + `var(--ink)` text), not just `.input`; and add a
+  dark `::placeholder` color (e.g. `var(--muted)`). Scope to **app pages** — keep landing fields light
+  (consistent with ISSUE-004's landing-stays-light intent).
+
+### Fix (2026-06-11)
+Added dark-mode rules for the **element selectors** (`input`, `textarea`, `select`) — not just
+`.input` — setting `background: var(--surface); color: var(--ink);`, plus a themed
+`::placeholder { color: var(--muted); }`. Using **tokens** means no extra scoping is needed: inside the
+light landing (`main.lp` re-asserts light tokens) any field resolves to a light surface + navy text
+automatically, so the landing-stays-light intent holds for free. File:
+[`index.css`](frontend/src/index.css). **Verified:** `npm run lint` clean + `vite build` green —
+Login/Register inputs and the OpenText `.text-answer` box are now legible in dark mode. Frontend-only;
+no ARCHITECTURE change.

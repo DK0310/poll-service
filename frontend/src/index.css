@@ -1309,6 +1309,14 @@ textarea {
   text-decoration: none;
 }
 
+/* in-page back link placed at the top of a page (e.g. the vote page) */
+.page-back {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-bottom: var(--space-md);
+  text-decoration: none;
+}
+
 /* skeletons (loading) */
 .skeleton {
   border-radius: var(--radius);
@@ -2086,7 +2094,9 @@ main.lp {
   background: color-mix(in srgb, var(--rose) 16%, var(--surface));
 }
 
-/* Keep the landing (full-bleed marketing) light regardless of theme. */
+/* Keep the landing (full-bleed marketing) light regardless of theme.
+   `main.lp` is otherwise transparent, so without an explicit paint the dark
+   `body` background shows through behind the (light) landing content. */
 :root[data-theme='dark'] main.lp {
   --bg: #f4f4f7;
   --surface: #ffffff;
@@ -2096,4 +2106,19 @@ main.lp {
   --ink: #14152d;
   --ink-soft: #3a3a4d;
   --muted: #6b6b80;
+  background: var(--bg);
+}
+
+/* Bare form fields (no `.input` class) — e.g. Login/Register inputs and the
+   OpenText `.text-answer` box — need explicit dark theming, or they keep the
+   browser-default light field background while text inherits the dark `--ink`
+   (white-on-white). Token-based, so fields inside the light landing stay light. */
+:root[data-theme='dark'] input,
+:root[data-theme='dark'] textarea,
+:root[data-theme='dark'] select {
+  background: var(--surface);
+  color: var(--ink);
+}
+:root[data-theme='dark'] ::placeholder {
+  color: var(--muted);
 }

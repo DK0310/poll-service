@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Lock, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Lock, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
 import { usePollInfo } from '../hooks/usePollInfo';
 import { useVote } from '../hooks/useVote';
 import { VoteForm } from '../components/VoteForm';
@@ -44,6 +44,9 @@ export function VotePage() {
 
   return (
     <div className="page">
+      <Link to="/" className="btn-outline page-back">
+        <ArrowLeft size={18} strokeWidth={2.25} aria-hidden="true" /> Back to home
+      </Link>
       <div className="card">
         <h1>{poll.question}</h1>
 

@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useAnalytics } from '../hooks/useAnalytics';
 import { LineChart } from '../components/LineChart';
@@ -8,6 +8,10 @@ const hhmm = (iso: string) =>
 
 export function AnalyticsPage() {
   const { code = '' } = useParams<{ code: string }>();
+  const { state } = useLocation();
+  const fromMyPolls = (state as { from?: string } | null)?.from === 'my-polls';
+  const backTo = fromMyPolls ? '/my-polls' : `/poll/${code}/results`;
+  const backLabel = fromMyPolls ? 'Back to my polls' : 'Back to live results';
   const { analytics, loading, notFound } = useAnalytics(code);
 
   if (loading) {
@@ -77,8 +81,8 @@ export function AnalyticsPage() {
         <LineChart points={points} />
       </div>
 
-      <Link to={`/poll/${code}/results`} className="btn-outline analytics-back">
-        <ArrowLeft size={18} strokeWidth={2.25} aria-hidden="true" /> Back to live results
+      <Link to={backTo} className="btn-outline analytics-back">
+        <ArrowLeft size={18} strokeWidth={2.25} aria-hidden="true" /> {backLabel}
       </Link>
     </div>
   );

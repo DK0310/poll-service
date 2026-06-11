@@ -28,7 +28,11 @@ export function PollCard({ poll, onClose, onDelete, busy }: PollCardProps) {
           <Link to={`/poll/${poll.code}/results`} className="poll-action">
             <BarChart3 size={16} strokeWidth={2.25} aria-hidden="true" /> Results
           </Link>
-          <Link to={`/poll/${poll.code}/analytics`} className="poll-action">
+          <Link
+            to={`/poll/${poll.code}/analytics`}
+            state={{ from: 'my-polls' }}
+            className="poll-action"
+          >
             <TrendingUp size={16} strokeWidth={2.25} aria-hidden="true" /> Analytics
           </Link>
           <Link to={`/poll/${poll.code}`} className="poll-action">
