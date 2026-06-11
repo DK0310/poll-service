@@ -2108,6 +2108,14 @@ main.lp {
   --muted: #6b6b80;
   background: var(--bg);
 }
+/* Landing footer is a sibling of `main.lp`, so it misses the light-token re-assertion
+   above. It paints `background: var(--ink)` (navy in light mode) — without this, the
+   dark-mode `--ink` (near-white) would flip the footer to a near-white background with
+   its light text, making it barely visible. Re-assert the light navy so it stays its
+   usual dark-navy marketing footer. */
+:root[data-theme='dark'] .lp-foot {
+  --ink: #14152d;
+}
 
 /* Bare form fields (no `.input` class) — e.g. Login/Register inputs and the
    OpenText `.text-answer` box — need explicit dark theming, or they keep the
