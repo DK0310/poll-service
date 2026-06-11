@@ -11,6 +11,12 @@ public class Vote
     /// <summary>Free-text answer for OpenText polls (null for choice/rating polls — stored, not tallied).</summary>
     public string? TextAnswer { get; set; }
 
+    /// <summary>Display name for an OpenText answer's author (email local-part); null = anonymous guest.</summary>
+    public string? AuthorName { get; set; }
+
+    /// <summary>Author's role for an OpenText answer ("User" / "Admin"); null = anonymous guest.</summary>
+    public string? AuthorRole { get; set; }
+
     /// <summary>Browser fingerprint / session token used to enforce one vote per voter per poll.</summary>
     public string VoterToken { get; set; } = "";
     public DateTime VotedAt { get; set; } = DateTime.UtcNow;

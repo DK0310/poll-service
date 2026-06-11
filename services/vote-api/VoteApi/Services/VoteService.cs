@@ -36,12 +36,17 @@ public class VoteService
         // 3. Validate the answer per poll type (OpenText = free text; others = option index)
         var isOpenText = string.Equals(poll.Type, "OpenText", StringComparison.OrdinalIgnoreCase);
         string? textAnswer = null;
+        string? authorName = null;
+        string? authorRole = null;
         var optionIndex = request.OptionIndex;
         if (isOpenText)
         {
             if (string.IsNullOrWhiteSpace(request.TextAnswer))
                 return Result<VoteResultsResponse>.Failure("A text answer is required");
             textAnswer = request.TextAnswer.Trim();
+            // Author label is display-only and client-supplied (null = anonymous guest).
+            authorName = string.IsNullOrWhiteSpace(request.AuthorName) ? null : request.AuthorName.Trim();
+            authorRole = string.IsNullOrWhiteSpace(request.AuthorRole) ? null : request.AuthorRole.Trim();
             optionIndex = 0; // not used for tallying
         }
         else if (optionIndex < 0 || optionIndex >= poll.Options.Count)
@@ -60,6 +65,8 @@ public class VoteService
             OptionIndex = optionIndex,
             VoterToken = request.VoterToken,
             TextAnswer = textAnswer,
+            AuthorName = authorName,
+            AuthorRole = authorRole,
             VotedAt = DateTime.UtcNow
         });
 

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using VoteApi.Data;
+using VoteApi.DTOs;
 using VoteApi.Models;
 
 namespace VoteApi.Repositories;
@@ -38,12 +39,18 @@ public class VoteRepository
             .Select(v => v.VotedAt)
             .ToListAsync();
 
-    /// <summary>Free-text answers for an OpenText poll, oldest first.</summary>
-    public virtual async Task<List<string>> GetTextAnswersAsync(string pollCode)
+    /// <summary>Free-text answers for an OpenText poll, oldest first (with author info for the comment feed).</summary>
+    public virtual async Task<List<TextAnswerResponse>> GetTextAnswersAsync(string pollCode)
         => await _db.Votes
             .Where(v => v.PollCode == pollCode && v.TextAnswer != null)
             .OrderBy(v => v.VotedAt)
-            .Select(v => v.TextAnswer!)
+            .Select(v => new TextAnswerResponse
+            {
+                Text = v.TextAnswer!,
+                AuthorName = v.AuthorName,
+                AuthorRole = v.AuthorRole,
+                VotedAt = v.VotedAt
+            })
             .ToListAsync();
 }
 

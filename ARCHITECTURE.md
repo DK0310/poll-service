@@ -8,7 +8,7 @@
 
 ## System Overview
 
-Poll & Survey Builder is a **microservices-based** real-time polling platform built for the AMD201 Advanced Microservices Deployment coursework. A creator writes a multiple-choice question with up to 6 options, shares a short link (e.g. `/poll/7fGh2`), and collects votes. The results page shows a **live bar chart** that updates in real time via SignalR WebSockets — no page refresh.
+Poll & Survey Builder is a **microservices-based** real-time polling platform built for the AMD201 Advanced Microservices Deployment coursework. A creator writes a question — **multiple-choice (2–6 options), yes/no, 1–5 rating, or open text** — shares a short link (e.g. `/poll/7fGh2`), and collects votes. The results page shows a **live bar chart** that updates in real time via SignalR WebSockets — no page refresh.
 
 **Architecture style:** Microservices behind an API Gateway. Each service owns its domain, its database, and its deployment lifecycle, and is independently deployable. Services talk to each other with synchronous HTTP only when necessary.
 
@@ -73,7 +73,7 @@ Poll & Survey Builder is a **microservices-based** real-time polling platform bu
 | Real-Time | SignalR WebSocket | ASP.NET Core 10 |
 | Auth | JWT Bearer (7-day expiry, `sub`+`role` claims, validated at Gateway) | — |
 | Authorization | Role-based (Guest / User / Admin) — Gateway policies + per-service owner/admin checks | — |
-| Charts | Hand-rolled SVG (`LiveBarChart`, `LineChart`) | — |
+| Charts | Hand-rolled — CSS/`div` bar chart (`LiveBarChart`, animated via `transform: scaleX`) + SVG line chart (`LineChart`) | — |
 | SignalR client | `@microsoft/signalr` | Latest |
 | Password hashing | BCrypt | — |
 | Containers | Docker (multi-stage) | Latest |
@@ -136,7 +136,7 @@ The Gateway is the **single entry point** for all external traffic. It:
 
 ## Service Topology & Ports
 
-Services call each other by **Docker service name** (e.g. `http://poll-api:8080`), never by `localhost`. Only the Gateway and Frontend are meant to be reachable from outside.
+Services call each other by **Docker service name** (e.g. `http://poll-api:8080`) in docker-compose and production; only bare-metal local dev overrides these to `localhost` (see the gateway's `appsettings.Development.json`). Only the Gateway and Frontend are meant to be reachable from outside.
 
 | Service | Local Port | Container Port | Docker Hostname | Internal URL |
 |---|---|---|---|---|
@@ -190,7 +190,7 @@ poll-service/
 │   │   ├── VoteApi/                       ← ASP.NET Core + SignalR
 │   │   │   ├── Controllers/
 │   │   │   │   ├── VotesController.cs      ← Vote submission + results + analytics
-│   │   │   │   └── QuestionsController.cs  ← Anonymous Q&A (list/ask/upvote/pin)
+│   │   │   │   └── QuestionsController.cs  ← Anonymous Q&A (list/ask/upvote/pin/delete)
 │   │   │   ├── Hubs/
 │   │   │   │   └── PollHub.cs              ← SignalR hub for live results + Q&A
 │   │   │   ├── Services/
@@ -217,7 +217,9 @@ poll-service/
 │   │   │   └── Program.cs
 │   │   ├── VoteApi.Tests/
 │   │   │   ├── Services/VoteServiceTests.cs
+│   │   │   ├── Services/QuestionServiceTests.cs
 │   │   │   ├── Integration/VoteEndpointTests.cs
+│   │   │   ├── Integration/QuestionEndpointTests.cs
 │   │   │   ├── Integration/CustomWebAppFactory.cs
 │   │   │   └── VoteApi.Tests.csproj
 │   │   ├── Dockerfile
@@ -246,6 +248,7 @@ poll-service/
 │   │   ├── IdentityApi.Tests/
 │   │   │   ├── Services/AuthServiceTests.cs
 │   │   │   ├── Integration/AuthEndpointTests.cs
+│   │   │   ├── Integration/AdminUsersEndpointTests.cs
 │   │   │   ├── Integration/CustomWebAppFactory.cs
 │   │   │   └── IdentityApi.Tests.csproj
 │   │   ├── Dockerfile
@@ -253,20 +256,24 @@ poll-service/
 │   │
 │   └── gateway/                           ← API Gateway (YARP)
 │       ├── Gateway/
-│       │   ├── Program.cs                  ← YARP config, JWT validation, CORS
-│       │   └── appsettings.json            ← Route + cluster definitions
+│       │   ├── Program.cs                  ← YARP config, JWT validation, CORS, X-User-* transform
+│       │   ├── appsettings.json            ← Route + cluster definitions (docker/prod hostnames)
+│       │   └── appsettings.Development.json ← Dev cluster overrides → localhost:5001/5002/5003
 │       ├── Dockerfile
 │       └── Gateway.sln
 │
 ├── frontend/                              ← React SPA
 │   ├── src/
 │   │   ├── api/
-│   │   │   └── api.ts                      ← Axios instance (→ Gateway)
+│   │   │   ├── api.ts                      ← Axios instance (→ Gateway)
+│   │   │   └── warmup.ts                   ← fire-and-forget pings to wake the free-tier backend
 │   │   ├── auth/
-│   │   │   ├── session.ts                  ← token + JWT decode (getUserId/getRole/isAdmin)
+│   │   │   ├── session.ts                  ← token + JWT decode (getUserId/getRole/isAdmin/getDisplayName)
 │   │   │   └── voter.ts                    ← persistent browser voter token (vote + upvote)
 │   │   ├── types/
 │   │   │   └── poll.types.ts               ← TypeScript interfaces for API data
+│   │   ├── utils/
+│   │   │   └── csv.ts                       ← Client-side CSV export (results download; no endpoint)
 │   │   ├── hooks/
 │   │   │   ├── useCreatePoll.ts            ← Poll creation
 │   │   │   ├── usePollInfo.ts              ← Fetch poll by code
@@ -275,7 +282,10 @@ poll-service/
 │   │   │   ├── useAnalytics.ts             ← Fetch creator analytics
 │   │   │   ├── useQuestions.ts             ← Q&A SignalR + submit/upvote/pin
 │   │   │   ├── useMyPolls.ts               ← Fetch creator's polls
-│   │   │   └── useAdmin.ts                 ← Admin dashboard data + actions
+│   │   │   ├── useAuth.ts                  ← Login/register actions
+│   │   │   ├── useAuthStatus.ts            ← Reactive auth/role state (auth-change event)
+│   │   │   ├── useAdmin.ts                 ← Admin dashboard data + actions
+│   │   │   └── useTheme.ts                 ← Light/dark theme (data-theme on <html>, persisted)
 │   │   ├── components/
 │   │   │   ├── PollForm.tsx                ← Create poll form (question + type + options)
 │   │   │   ├── VoteForm.tsx                ← Vote interface (radios/rating/text by type)
@@ -283,11 +293,13 @@ poll-service/
 │   │   │   ├── LineChart.tsx               ← SVG votes-over-time chart (analytics)
 │   │   │   ├── QandAPanel.tsx              ← Anonymous Q&A panel (pin gated by canModerate)
 │   │   │   ├── PollCard.tsx                ← Poll summary card
-│   │   │   ├── ShareLink.tsx               ← Copyable share link
+│   │   │   ├── ShareLink.tsx               ← Copyable share link + "Show QR" toggle (qrcode.react)
+│   │   │   ├── Toast.tsx                   ← ToastProvider + useToast (no-dependency notifications)
 │   │   │   ├── RequireAuth.tsx             ← Route guard (logged-in only)
 │   │   │   └── RequireAdmin.tsx            ← Route guard (admin only)
 │   │   ├── pages/
-│   │   │   ├── CreatePollPage.tsx          ← Poll creation interface (guest CTA)
+│   │   │   ├── HomePage.tsx                ← Marketing landing page (route /)
+│   │   │   ├── CreatePollPage.tsx          ← Poll creation interface (route /create; guest CTA)
 │   │   │   ├── VotePage.tsx                ← Voting page (by code)
 │   │   │   ├── ResultsPage.tsx             ← Live results page
 │   │   │   ├── AnalyticsPage.tsx           ← Creator analytics dashboard
@@ -295,18 +307,23 @@ poll-service/
 │   │   │   ├── AdminDashboardPage.tsx      ← Admin: all polls + users
 │   │   │   ├── LoginPage.tsx               ← Login form
 │   │   │   └── RegisterPage.tsx            ← Registration form
-│   │   └── App.tsx                         ← Router setup
+│   │   └── App.tsx                         ← Router + auth-aware nav (theme toggle) + footers; mounts ToastProvider
+│   ├── public/                             ← favicon.svg, icons.svg
+│   ├── index.html
 │   ├── .env                                ← VITE_API_URL, VITE_HUB_URL (point to Gateway)
 │   ├── vite.config.ts
 │   ├── package.json
 │   ├── tsconfig.json
-│   ├── nginx.conf                          ← SPA fallback + proxy /api and /hubs to Gateway
+│   ├── nginx.conf                          ← SPA fallback + proxy /api and /hubs to Gateway (compose only)
 │   └── Dockerfile
 │
 ├── .github/workflows/
 │   └── ci-cd.yml                           ← Lint/test → build/push → deploy ALL services
 ├── docker-compose.yml                      ← Local orchestration (all services)
 ├── ARCHITECTURE.md                         ← This file (authoritative)
+├── DEPLOYMENT.md                           ← Render/CI deploy guide + secrets
+├── KNOWN_ISSUES.md                         ← Tracked defects (ISSUE-001…)
+├── CONTRIBUTING.md                         ← Branch/commit conventions, prerequisites
 └── README.md
 ```
 
@@ -344,10 +361,12 @@ Each service owns its data exclusively and has its own SQL Server database, DbCo
 │ ├─ Code (UQ)    │ ├─ PollCode      │ ├─ Email (UQ)         │
 │ ├─ Question     │ ├─ OptionIndex   │ ├─ PasswordHash       │
 │ ├─ Type         │ ├─ TextAnswer?   │ ├─ Role               │
-│ ├─ Status       │ ├─ VoterToken    │ └─ CreatedAt          │
-│ ├─ ExpiresAt    │ ├─ VotedAt       │                        │
-│ ├─ CreatorId    │ └─ UQ(PollCode,  │                        │
-│ └─ CreatedAt    │      VoterToken) │                        │
+│ ├─ Status       │ ├─ AuthorName?   │ └─ CreatedAt          │
+│ ├─ ExpiresAt    │ ├─ AuthorRole?   │                        │
+│ ├─ CreatorId    │ ├─ VoterToken    │                        │
+│ └─ CreatedAt    │ ├─ VotedAt       │                        │
+│                 │ └─ UQ(PollCode,  │                        │
+│                 │      VoterToken) │                        │
 │                 │                  │                        │
 │ PollOptions     │ Questions        │                        │
 │ ├─ Id (PK)      │ ├─ Id (PK)       │                        │
@@ -402,6 +421,8 @@ Computed (not persisted): `IsExpired`, `IsClosed`, `IsActive`.
 | PollCode | string | Which poll — **NOT a FK** (different database) |
 | OptionIndex | int | Which option was chosen (0 for OpenText) |
 | TextAnswer | string? | Free-text answer for OpenText polls (max 1000); null otherwise |
+| AuthorName | string? | OpenText answer author's display label — email local-part (max 64); **null = anonymous guest**. Display-only, client-supplied |
+| AuthorRole | string? | OpenText answer author's role (`User`/`Admin`, max 20); null for guests. Display-only |
 | VoterToken | string | Browser fingerprint / session cookie |
 | VotedAt | DateTime | UTC, `GETUTCDATE()` default |
 
@@ -610,6 +631,10 @@ JWT is validated **once, centrally, at the Gateway**. Downstream services trust 
 
 `Jwt:Secret` **must be identical** in the Gateway and the Identity API (the Gateway validates tokens the Identity API signs).
 
+### Cold-start mitigation (free-tier)
+
+On a free-tier host the backend services sleep when idle and take ~30–60s to wake on the first request. To soften this, the SPA fires **fire-and-forget warm-up pings on app load** (`src/api/warmup.ts`): `GET /api/auth/warmup` (identity), `/api/polls/warmup` (gateway + poll-api), `/api/polls/warmup/results` (vote-api). These intentionally hit non-existent codes and **404** — the only goal is to wake each process (and trigger its startup DB connect) while the user reads the page, so the first real action (login/create/vote) isn't stuck on a cold boot. The login page also shows a "server is waking" hint while a request is in flight.
+
 ---
 
 ## Role-Based Access Control (Guest / User / Admin)
@@ -680,21 +705,25 @@ docker-compose up --build
 
 Secrets (`SA_PASSWORD`, `JWT_SECRET`) come from a gitignored root `.env` via `${VAR}` interpolation; `.env.example` is the committed template.
 
-Nginx in the frontend container proxies `/api/` and `/hubs/` to `gateway:8080` (with WebSocket upgrade headers on `/hubs/`) — it never proxies directly to individual services. The SPA is built with relative URLs (`VITE_API_URL=/api`, `VITE_HUB_URL=/hubs/poll`) so the browser calls the frontend's own origin and Nginx forwards to the Gateway.
+**In docker-compose (local):** Nginx in the frontend container proxies `/api/` and `/hubs/` to `gateway:8080` (with WebSocket upgrade headers on `/hubs/`) — it never proxies directly to individual services. The SPA is built with relative URLs (`VITE_API_URL=/api`, `VITE_HUB_URL=/hubs/poll`) so the browser calls the frontend's own origin and Nginx forwards to the Gateway. **In production**, the frontend is a Static Site (no Nginx) that calls the gateway's absolute public URL cross-origin — see *Production (Render)* below.
 
 ### Production (Render)
 
-Each service is deployed as a separate Render Web Service pulling its image from Docker Hub:
+The **four backend services** deploy as separate Render **Web Services** pulling their images from Docker Hub; the **frontend** is a Render **Static Site** (free, CDN-served, no cold start) built from the repo:
 
 ```
-Render Services:
-  ├─ Gateway Web Service
-  ├─ Poll API Web Service
-  ├─ Vote API Web Service
-  ├─ Identity API Web Service
-  ├─ Frontend Web Service
-  └─ SQL Server Database
+Render:
+  ├─ Gateway       Web Service   (Docker image)
+  ├─ Poll API      Web Service   (Docker image)
+  ├─ Vote API      Web Service   (Docker image)
+  ├─ Identity API  Web Service   (Docker image)
+  ├─ Frontend      Static Site   (Vite build; VITE_API_URL / VITE_HUB_URL baked to the gateway's public URL)
+  └─ SQL Server    Database
 ```
+
+**Frontend ↔ Gateway in production is cross-origin** (unlike docker-compose, where Nginx proxies same-origin — see below). The static site calls the gateway's public URL directly, so the gateway's CORS `Frontend__Url` must be set to the static-site origin (exact scheme+host, no trailing slash), and `AllowCredentials` covers the SignalR WebSocket.
+
+> **Legacy note:** the `pollbuilder-frontend` Docker image + `RENDER_HOOK_FRONTEND` (built/used by CI and docker-compose) are **not** the production frontend path anymore — the Static Site auto-deploys from git. They remain valid for local docker-compose and as a fallback.
 
 ### CI/CD Pipeline (GitHub Actions — `.github/workflows/ci-cd.yml`)
 
@@ -739,7 +768,8 @@ Docker image naming: `pollbuilder-{service}` (e.g. `pollbuilder-poll-api`) on Do
 
 | Path | Page | Purpose |
 |---|---|---|
-| `/` | CreatePollPage | Poll creation form (guests see a "log in to create" CTA) |
+| `/` | HomePage | Marketing landing page (full-bleed; rich footer). CTAs → `/create` |
+| `/create` | CreatePollPage | Poll creation form (guests see a "log in to create" CTA) |
 | `/poll/:code` | VotePage | Voting page |
 | `/poll/:code/results` | ResultsPage | Live results (SignalR) |
 | `/poll/:code/analytics` | AnalyticsPage | Creator analytics (owner/admin) |
@@ -747,6 +777,8 @@ Docker image naming: `pollbuilder-{service}` (e.g. `pollbuilder-poll-api`) on Do
 | `/admin` | AdminDashboardPage | Admin dashboard — all polls + users (`RequireAdmin`) |
 | `/login` | LoginPage | Login |
 | `/register` | RegisterPage | Registration |
+
+The shared chrome (auth-aware nav + footer) lives in `App.tsx`; the landing route renders **full-bleed** with a rich marketing footer, while all other routes use the centered layout + thin colophon footer.
 
 ---
 
@@ -768,7 +800,12 @@ Docker image naming: `pollbuilder-{service}` (e.g. `pollbuilder-poll-api`) on Do
 | **Typed `HttpClient` for inter-service calls** | Correct `HttpClient` lifetime; avoids socket exhaustion |
 | **Docker multi-stage builds** | ~200 MB production images instead of ~900 MB |
 | **Voter deduplication via token** | Session/fingerprint-based — no login required for voters |
-| **`PollCleanupService` background hosted service** | Auto-closes expired polls without a manual trigger; interval is configurable (`PollCleanup:IntervalSeconds`) |
+| **`PollCleanupService` background hosted service + lazy close-on-read** | Two-tier expiry: the computed `IsActive` (`!IsExpired && !IsClosed`) makes a poll behave as closed the instant `ExpiresAt` passes (vote-rejection, banner, pill all read `IsActive`); the background sweep (`PollCleanup:IntervalSeconds`) **and** a lazy close-on-read in `GetByCodeAsync` both persist `Status = Closed`. The lazy path means auto-close doesn't depend on the sweep being awake on a free-tier host (resolved [KNOWN_ISSUES.md](KNOWN_ISSUES.md) ISSUE-001) |
 | **Question type stored as a string** (`HasConversion<string>`) | Readable in the DB; new types add safely without re-ordering an int enum |
 | **OpenText answers in `Vote.TextAnswer`** | Reuses the Votes table/dedup path; results return `TextAnswers` instead of option tallies |
+| **OpenText answers carry a client-supplied author label** (`AuthorName`/`AuthorRole`) | Results render answers as a social-style comment feed; logged-in users show their email local-part + role, guests show **Anonymous**. Display-only and client-supplied (the SPA already decodes the JWT for UX only) — a text-answer feed is not a security boundary, so this needs no Gateway change |
 | **Anonymous Q&A in Vote API** | Lives next to the real-time hub; broadcasts `ReceiveQuestionsUpdate` like vote updates — no login required |
+| **QR share code in `ShareLink` (`qrcode.react`, SVG)** | A "Show QR" toggle encodes the vote URL so an audience can scan to vote and watch results update live — frontend-only, no backend/route change; SVG renders crisply on a projector and works offline (no external QR service). Kept on a white quiet-zone background for scan reliability |
+| **Client-side CSV export (`utils/csv.ts`)** | "Download CSV" on the Results page builds the file from the already-loaded `VoteResults` (option tallies, or OpenText answers with author) — no new endpoint/route; a UTF-8 BOM makes Excel open it cleanly |
+| **No-dependency toast context (`Toast.tsx`)** | `ToastProvider`/`useToast` give lightweight action feedback (copy/create/close/delete) without adding a library, matching the project's minimal-deps style; styled from tokens so it themes automatically |
+| **Dark mode via `data-theme` token overrides (`useTheme`)** | A nav toggle sets `data-theme` on `<html>` (persisted; defaults from `prefers-color-scheme`). App pages read CSS custom properties, so one dark token block themes them; the marketing landing re-asserts light tokens on `main.lp` and stays light by design |

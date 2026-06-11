@@ -10,7 +10,16 @@ public record VoteResultsResponse
     public List<OptionResult> Options { get; init; } = new();
 
     /// <summary>Submitted free-text answers for OpenText polls (empty for choice/rating polls).</summary>
-    public List<string> TextAnswers { get; init; } = new();
+    public List<TextAnswerResponse> TextAnswers { get; init; } = new();
+}
+
+/// <summary>One OpenText answer, rendered as a social-style comment. Author fields are null for guests.</summary>
+public record TextAnswerResponse
+{
+    public string Text { get; init; } = "";
+    public string? AuthorName { get; init; }
+    public string? AuthorRole { get; init; }
+    public DateTime VotedAt { get; init; }
 }
 
 public record OptionResult

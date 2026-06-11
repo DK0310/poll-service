@@ -34,6 +34,13 @@ export interface OptionResult {
   percentage: number;
 }
 
+export interface TextAnswer {
+  text: string;
+  authorName: string | null; // null = Anonymous (guest)
+  authorRole: string | null; // "User" | "Admin" | null
+  votedAt: string; // ISO 8601
+}
+
 export interface VoteResults {
   pollCode: string;
   question: string;
@@ -41,7 +48,7 @@ export interface VoteResults {
   totalVotes: number;
   isActive: boolean;
   options: OptionResult[];
-  textAnswers: string[];
+  textAnswers: TextAnswer[];
 }
 
 // ── Auth (Identity API via Gateway) ─────────────────────────

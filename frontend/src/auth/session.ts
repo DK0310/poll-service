@@ -28,6 +28,7 @@ export function clearToken(): void {
 interface JwtClaims {
   sub?: string;
   role?: string;
+  email?: string;
 }
 
 function decodeClaims(): JwtClaims | null {
@@ -53,4 +54,10 @@ export function getRole(): string | null {
 
 export function isAdmin(): boolean {
   return getRole() === 'Admin';
+}
+
+/** Display name for the logged-in user — the email local-part (before @). Null when not logged in. */
+export function getDisplayName(): string | null {
+  const email = decodeClaims()?.email;
+  return email ? email.split('@')[0] : null;
 }

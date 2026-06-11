@@ -650,11 +650,17 @@ textarea {
 }
 
 /* share link */
+.share-link-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin: 0 auto var(--space-lg);
+  max-width: 100%;
+}
 .share-link {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  margin: 0 auto var(--space-lg);
   max-width: 100%;
 }
 .share-link__url {
@@ -671,9 +677,28 @@ textarea {
   color: var(--ink);
   text-align: left;
 }
-.share-link__copy {
+.share-link__copy,
+.share-link__qr-toggle {
   flex: none;
   white-space: nowrap;
+}
+
+/* QR panel — kept on a white quiet-zone background for reliable scanning
+   (intentionally light even in dark mode; QR needs dark-on-light contrast) */
+.share-link__qr {
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.share-link__qr svg {
+  display: block;
+  height: auto;
 }
 
 .created-links {
@@ -1053,21 +1078,73 @@ textarea {
   background: var(--violet);
 }
 
-/* open-text responses */
-.answer-list {
+/* open-text responses — social-style comment feed */
+.comment-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-md);
 }
-.answer-item {
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: #fff;
+.comment {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+}
+.comment__avatar {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 15px;
+  color: #fff;
+  background: var(--ink);
+}
+.comment__avatar--anon {
+  background: var(--muted);
+}
+.comment__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--surface-bd);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 10px 14px;
+}
+.comment__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.comment__name {
+  font-weight: 600;
   color: var(--ink);
+}
+.comment__role {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--rose);
+  background: color-mix(in srgb, var(--rose) 12%, transparent);
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+.comment__time {
+  font-size: 12px;
+  color: var(--muted);
+}
+.comment__text {
+  margin: 0;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* results footer */
@@ -1087,6 +1164,11 @@ textarea {
 }
 .results-foot .btn-outline {
   text-decoration: none;
+}
+.results-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
 }
 .results-share {
   flex: 1 1 320px;
@@ -1111,8 +1193,8 @@ textarea {
 .vote-share .share-hint {
   margin-bottom: var(--space-sm);
 }
-.vote-share .share-link,
-.results-share .share-link {
+.vote-share .share-link-wrap,
+.results-share .share-link-wrap {
   margin-bottom: 0;
 }
 
@@ -1583,7 +1665,14 @@ main.lp {
 
 /* hero */
 .hero {
-  padding: 64px 0 40px;
+  padding: 64px 0 48px;
+  /* soft branded wash so the section reads on-theme (pink near the preview card,
+     a faint navy/blue near the copy) instead of flat gray behind the white cards */
+  background:
+    radial-gradient(58% 90% at 88% 8%, rgba(253, 90, 139, 0.13), transparent 60%),
+    radial-gradient(46% 80% at 6% 18%, rgba(25, 108, 255, 0.08), transparent 58%),
+    linear-gradient(180deg, #fbfbfe 0%, var(--bg) 100%);
+  border-bottom: 1px solid var(--surface-bd);
 }
 .hero-grid {
   display: grid;
@@ -1807,4 +1896,204 @@ main.lp {
   .foot-grid {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+/* ── Landing motion ──────────────────────────────────────────
+   (reuses the page-rise feel; the global prefers-reduced-motion
+   block above neutralises all of this for motion-sensitive users) */
+
+/* hero: staggered on-load entrance for the copy + preview card */
+.hero-grid > * {
+  animation: lp-rise 620ms var(--ease-enter) both;
+}
+.hero-grid > *:nth-child(2) {
+  animation-delay: 130ms;
+}
+@keyframes lp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+/* preview card: bars grow in (reinforces the "live results" idea) */
+.preview-card .bar-fill {
+  transform-origin: left center;
+  animation: bar-grow 800ms var(--ease-enter) both;
+  animation-delay: 360ms;
+}
+.preview-card .bar-row:nth-child(2) .bar-fill {
+  animation-delay: 460ms;
+}
+.preview-card .bar-row:nth-child(3) .bar-fill {
+  animation-delay: 560ms;
+}
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* hover transitions — cards lift, icons nudge, preview floats */
+.feat {
+  transition: transform var(--dur-1) var(--ease-enter),
+    box-shadow var(--dur-1) var(--ease-enter), border-color var(--dur-1) var(--ease-enter);
+}
+.feat:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow);
+  border-color: #ffd0e0;
+}
+.feat__ic {
+  transition: transform var(--dur-1) var(--ease-enter);
+}
+.feat:hover .feat__ic {
+  transform: scale(1.08) rotate(-4deg);
+}
+.preview-card {
+  transition: transform var(--dur-2) var(--ease-enter), box-shadow var(--dur-2) var(--ease-enter);
+}
+.preview-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 1px 2px rgba(20, 21, 45, 0.05), 0 24px 50px -20px rgba(20, 21, 45, 0.28);
+}
+.step__n {
+  transition: transform var(--dur-1) var(--ease-enter);
+}
+.step:hover .step__n {
+  transform: scale(1.08);
+}
+
+/* scroll-reveal for below-the-fold sections (JS-driven via IntersectionObserver
+   in HomePage). Elements start hidden and reveal as they enter the viewport; the
+   observer reveals anything already on screen on mount, and HomePage reveals all
+   if IntersectionObserver is unavailable — so content can never stay hidden. */
+.lp-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 600ms var(--ease-enter), transform 600ms var(--ease-enter);
+}
+.lp-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* ── Toasts ──────────────────────────────────────────────── */
+.toast-viewport {
+  position: fixed;
+  right: var(--space-lg);
+  bottom: var(--space-lg);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  max-width: 360px;
+  padding: 11px 14px;
+  border: 1px solid var(--surface-bd);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  animation: toast-in var(--dur-2) var(--ease-enter) both;
+}
+.toast--success {
+  border-left-color: var(--success);
+}
+.toast--success svg:first-child {
+  color: var(--success);
+}
+.toast--error {
+  border-left-color: var(--danger);
+}
+.toast--error svg:first-child {
+  color: var(--danger);
+}
+.toast__msg {
+  flex: 1;
+}
+.toast__x {
+  color: var(--muted);
+  flex: none;
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.theme-toggle {
+  padding-inline: 10px;
+}
+
+/* ── Dark mode (app pages; the marketing landing stays light) ─ */
+:root[data-theme='dark'] {
+  --bg: #0f1020;
+  --surface: #1b1c33;
+  --surface-solid: #1b1c33;
+  --surface-bd: #2c2c47;
+  --border: #2c2c47;
+  --ink: #f2f2f8;
+  --ink-soft: #c6c6d8;
+  --muted: #9696ad;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px -14px rgba(0, 0, 0, 0.7);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* App-page surfaces that hardcode a light background in light mode → dark surface.
+   (Light-mode CSS is untouched; these rules only apply under [data-theme="dark"].) */
+:root[data-theme='dark'] .app-header {
+  background: rgba(15, 16, 32, 0.9);
+}
+:root[data-theme='dark'] .brand__mark {
+  background: var(--rose);
+}
+:root[data-theme='dark'] .btn-outline,
+:root[data-theme='dark'] .input,
+:root[data-theme='dark'] .seg-btn,
+:root[data-theme='dark'] .opt-remove,
+:root[data-theme='dark'] .vopt,
+:root[data-theme='dark'] .vopt .check,
+:root[data-theme='dark'] .yesno-block,
+:root[data-theme='dark'] .rating-chip,
+:root[data-theme='dark'] .qanda-item,
+:root[data-theme='dark'] .qanda__upvote,
+:root[data-theme='dark'] .stat-card {
+  background: var(--surface);
+}
+:root[data-theme='dark'] .vopt--on,
+:root[data-theme='dark'] .yesno-block--on,
+:root[data-theme='dark'] .qanda-item--pinned {
+  background: color-mix(in srgb, var(--rose) 16%, var(--surface));
+}
+
+/* Keep the landing (full-bleed marketing) light regardless of theme. */
+:root[data-theme='dark'] main.lp {
+  --bg: #f4f4f7;
+  --surface: #ffffff;
+  --surface-solid: #ffffff;
+  --surface-bd: #e3e3ea;
+  --border: #e3e3ea;
+  --ink: #14152d;
+  --ink-soft: #3a3a4d;
+  --muted: #6b6b80;
 }

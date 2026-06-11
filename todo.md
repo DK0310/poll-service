@@ -331,6 +331,100 @@ defense-in-depth, server still authoritative).
 
 ---
 
+## Phase 13 — OpenText answers as social comments  `[UX]`  ✅ DONE
+
+**Goal:** render each OpenText poll answer on the Results page as a social-media-style **comment**
+(avatar + author name + role chip + the text). A **guest's** answer shows as **"Anonymous"**;
+a **logged-in** user's answer shows their **name + role**.
+
+**Decisions locked:**
+- **Surface:** OpenText poll answers only — the anonymous Q&A panel is unchanged (stays anonymous by design).
+- **Name source:** there is no name field in the system (`User` has only `Email`/`Role`; JWT carries
+  `sub`/`email`/`role`). Use the **email local-part** (text before `@`).
+- **Trust model:** **client-supplied label** — the SPA already decodes the JWT for UX only ("never for
+  security") and sends name+role in the vote body; the Vote API stores them as-is. Spoofable, but a
+  text-answer feed is not a security boundary, so **no Gateway change** is needed.
+
+- [x] **Vote API schema:** `Vote` +`AuthorName`(64, nullable) +`AuthorRole`(20, nullable) in
+  `Models/Vote.cs` + `Data/VoteDbContext.cs`; migration **`AddVoteAuthor`** (auto-applies on startup).
+- [x] **Vote API contract:** `VoteRequest` +`AuthorName?`/`AuthorRole?`; `VoteResultsResponse.TextAnswers`
+  changes `List<string>` → `List<TextAnswerResponse>` (`Text`, `AuthorName?`, `AuthorRole?`, `VotedAt`);
+  `VoteRepository.GetTextAnswersAsync` projects the new shape; `VoteService` captures author in the
+  OpenText branch of `SubmitVoteAsync`.
+- [x] **Frontend:** `session.ts` +`getDisplayName()` (email local-part); `useVote` sends
+  `authorName`/`authorRole`; `poll.types.ts` `textAnswers: TextAnswer[]`; `ResultsPage` renders comment
+  cards (avatar / name-or-Anonymous / role chip / relative time / text); `index.css` `.comment*` styles.
+- [x] **Tests:** update the OpenText results test to the new shape; add author-persisted + guest-null tests.
+- [x] **Docs:** sync ARCHITECTURE.md (Vote entity + DB diagram + one design-decision row). No route/RBAC change.
+
+**Definition of Done:** guest answers show "Anonymous", logged-in answers show name + role chip; the feed
+updates live (SignalR already broadcasts results); `dotnet test` vote-api green; frontend lint+build clean;
+ARCHITECTURE.md synced.
+
+---
+
+## Product polish — Phases 14–17  `[UX]`
+
+Optional, **frontend-only** features for bonus credit + a stronger live demo. The app already clears the
+Distinction band (all 4 brief additions + RBAC + comment feed), so these are extras — kept deliberately
+simple. **No backend, schema, endpoint, or Gateway changes** in any of these phases. Build them
+**one phase at a time on request** (log-first, like the rest of this plan).
+
+**Shared scope decisions:**
+- **Dark mode → app pages only**; the marketing landing (`/`) stays its current light design
+  (`index.css` has ~56 hardcoded colors concentrated in the landing styles; app pages mostly use tokens).
+- **CSV** is generated **client-side** from the already-loaded `VoteResults` — no new route.
+- **Toasts** = a tiny **no-dependency** context (project's no-extra-lib style); **QR** adds one small
+  library (`qrcode.react`, SVG output — crisp on a projector, offline, no external call).
+
+---
+
+### Phase 14 — QR code for live voting  `[UX]`  ✅ DONE
+**Goal:** show a scannable QR of the vote link so an audience can scan → vote → watch the bars move live
+(amplifies the existing SignalR feature — the best demo moment).
+- [x] Add dependency `qrcode.react` (frontend). — `qrcode.react@4.2.0` (`QRCodeSVG`, SVG/offline).
+- [x] Enhance [ShareLink.tsx](frontend/src/components/ShareLink.tsx) (already shown on Vote + Results
+  pages): a **"Show QR"** toggle revealing `<QRCodeSVG value={url} size={180} />` (reuses the existing
+  `url = origin + /poll/{code}`), collapsed by default. — wrapped in `.share-link-wrap`; toggle uses the `QrCode` icon.
+- [x] `.share-link__qr` styles in [index.css](frontend/src/index.css) (token-based; white quiet-zone padding).
+- [x] Sync [ARCHITECTURE.md](ARCHITECTURE.md): structure-tree note on ShareLink QR + one frontend design-decision line.
+- **DoD:** ✅ `npm run lint` clean + `npm run build` green; QR encodes the `/poll/{code}` URL; scanning opens the vote page and a vote updates the live chart (SignalR).
+
+### Phase 15 — Export results to CSV  `[UX]`  ✅ DONE
+**Goal:** a "Download CSV" of a poll's results, generated client-side (no endpoint).
+- [x] New util `frontend/src/utils/csv.ts` — `downloadCsv(filename, headers, rows)` (RFC-escapes fields
+  with `,"`/newlines; UTF-8 BOM for Excel; `Blob` + temporary `<a download>`; revokes the object URL).
+- [x] "Download CSV" button on [ResultsPage.tsx](frontend/src/pages/ResultsPage.tsx) (`results-foot`):
+  choice/rating/yes-no → `Option, Votes, Percentage` (+ a total row); OpenText → `Author, Role, Answer,
+  SubmittedAt` (author `?? "Anonymous"`). Filename `poll-{code}-results.csv`. Uses the `Download` icon; grouped in `.results-actions`.
+- [x] Sync [ARCHITECTURE.md](ARCHITECTURE.md): structure-tree `utils/csv.ts` + a design-decision line (client-side CSV).
+- **DoD:** ✅ lint + build clean; button builds a correct CSV for both choice polls and OpenText polls from in-memory results.
+
+### Phase 16 — Toast notifications  `[UX]`  ✅ DONE
+**Goal:** lightweight action feedback, with no dependency.
+- [x] New `frontend/src/components/Toast.tsx`: `ToastProvider` (context), `useToast()` →
+  `toast(message, kind?: 'success' | 'error')`, and a viewport (fixed corner, auto-dismiss ~3s, dismiss on click).
+- [x] Mount in [App.tsx](frontend/src/App.tsx): wrap `Layout` in `<ToastProvider>` (inside `BrowserRouter`).
+- [x] Wire `toast(...)` at existing success/error points: ShareLink copy, [CreatePollPage.tsx](frontend/src/pages/CreatePollPage.tsx)
+  created, close/delete in `MyPollsPage` + [useAdmin.ts](frontend/src/hooks/useAdmin.ts)/`AdminDashboardPage` (success + error toasts).
+- [x] `.toast*` styles in [index.css](frontend/src/index.css) (token-based → themes automatically).
+- [x] Sync [ARCHITECTURE.md](ARCHITECTURE.md): structure-tree `components/Toast.tsx` + a design-decision line.
+- **DoD:** ✅ create / copy / close / delete raise toasts; lint + build clean.
+
+### Phase 17 — Dark mode (app pages)  `[UX]`  ✅ DONE
+**Goal:** a light/dark toggle for the app pages; the marketing landing stays light by design.
+- [x] Dark token set in [index.css](frontend/src/index.css): `:root[data-theme="dark"] { --bg / --surface /
+  --surface-solid / --surface-bd / --border / --ink / --ink-soft / --muted / --shadow }` (brand `--rose`/`--blue`/`--violet` kept).
+- [x] Re-declared (in the dark block only) the app-page surfaces that hardcode a light background in light mode
+  (`.btn-outline`/`.input`/`.seg-btn`/`.opt-remove`/`.vopt`/`.yesno-block`/`.rating-chip`/`.qanda-item`/`.qanda__upvote`/`.stat-card` → `--surface`;
+  selected tints → `color-mix` rose; `.app-header`, `.brand__mark` fixed) — **light-mode CSS untouched**. Landing kept light via `main.lp` token re-assert.
+- [x] Theme toggle in `Nav` ([App.tsx](frontend/src/App.tsx)) (sun/moon icon) via `useTheme` hook: sets
+  `document.documentElement.dataset.theme`, persists `localStorage('theme')`, inits from stored value or `prefers-color-scheme`.
+- [x] Sync [ARCHITECTURE.md](ARCHITECTURE.md): `useTheme.ts` in tree + a design-decision line (`data-theme` token overrides; app pages; landing light).
+- **DoD:** ✅ toggle flips app pages light↔dark and persists across reload; landing stays light; lint + build clean.
+
+---
+
 ## Cross-cutting checklist (every phase)
 
 - [ ] Tests written alongside the feature (`test-driven-development`)

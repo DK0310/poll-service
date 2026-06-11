@@ -5,11 +5,13 @@ import { PollForm } from '../components/PollForm';
 import { ShareLink } from '../components/ShareLink';
 import { useCreatePoll } from '../hooks/useCreatePoll';
 import { useAuthStatus } from '../hooks/useAuthStatus';
+import { useToast } from '../components/Toast';
 import type { PollInfo, QuestionType } from '../types/poll.types';
 
 export function CreatePollPage() {
   const { createPoll, loading, error } = useCreatePoll();
   const { authed } = useAuthStatus();
+  const { toast } = useToast();
   const [result, setResult] = useState<PollInfo | null>(null);
 
   // Creating a poll requires an account (the API rejects anonymous creates with 401).
@@ -38,7 +40,10 @@ export function CreatePollPage() {
     expiryHours?: number,
   ) => {
     const poll = await createPoll({ question, type, options, expiryHours });
-    if (poll) setResult(poll);
+    if (poll) {
+      setResult(poll);
+      toast('Poll created');
+    }
   };
 
   if (result) {

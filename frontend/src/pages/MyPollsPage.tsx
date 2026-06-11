@@ -4,10 +4,12 @@ import { LogIn, Plus } from 'lucide-react';
 import api, { apiErrorMessage } from '../api/api';
 import { PollCard } from '../components/PollCard';
 import { useMyPolls } from '../hooks/useMyPolls';
+import { useToast } from '../components/Toast';
 import { isAuthenticated } from '../auth/session';
 
 export function MyPollsPage() {
   const { polls, loading, error, refresh } = useMyPolls();
+  const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -31,8 +33,11 @@ export function MyPollsPage() {
     try {
       await api.patch(`/polls/${code}/close`);
       await refresh();
+      toast('Poll closed');
     } catch (err) {
-      setActionError(apiErrorMessage(err, 'Failed to close poll'));
+      const msg = apiErrorMessage(err, 'Failed to close poll');
+      setActionError(msg);
+      toast(msg, 'error');
     } finally {
       setBusy(false);
     }
@@ -44,8 +49,11 @@ export function MyPollsPage() {
     try {
       await api.delete(`/polls/${code}`);
       await refresh();
+      toast('Poll deleted');
     } catch (err) {
-      setActionError(apiErrorMessage(err, 'Failed to delete poll'));
+      const msg = apiErrorMessage(err, 'Failed to delete poll');
+      setActionError(msg);
+      toast(msg, 'error');
     } finally {
       setBusy(false);
     }

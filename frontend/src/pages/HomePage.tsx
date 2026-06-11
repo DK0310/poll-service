@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Sparkles,
@@ -44,6 +45,29 @@ const features = [
 ];
 
 export function HomePage() {
+  // Reveal lower sections as they scroll into view. Anything already on screen
+  // reveals on mount; if IntersectionObserver is missing, reveal everything.
+  useEffect(() => {
+    const els = Array.from(document.querySelectorAll<HTMLElement>('.lp-reveal'));
+    if (!('IntersectionObserver' in window)) {
+      els.forEach((el) => el.classList.add('is-visible'));
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add('is-visible');
+            io.unobserve(e.target);
+          }
+        });
+      },
+      { rootMargin: '0px 0px -8% 0px', threshold: 0.08 },
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
   return (
     <>
       {/* ── Hero ─────────────────────────────────────────── */}
@@ -127,7 +151,7 @@ export function HomePage() {
           <p className="sub">Pick a question type, share a link, and engage your audience in real time.</p>
           <div className="feat-grid">
             {features.map(({ icon: Icon, title, body }) => (
-              <div className="feat" key={title}>
+              <div className="feat lp-reveal" key={title}>
                 <div className="feat__ic">
                   <Icon size={22} strokeWidth={2.25} aria-hidden="true" />
                 </div>
@@ -145,17 +169,17 @@ export function HomePage() {
           <h2>How it works</h2>
           <p className="sub">From idea to live results in three steps.</p>
           <div className="steps">
-            <div className="step">
+            <div className="step lp-reveal">
               <div className="step__n">1</div>
               <h3>Create</h3>
               <p>Sign in, write your question, pick a type, add options and an optional expiry.</p>
             </div>
-            <div className="step">
+            <div className="step lp-reveal">
               <div className="step__n">2</div>
               <h3>Share</h3>
               <p>Send the short <span className="mono">/poll/code</span> link. Anyone can vote — no account required.</p>
             </div>
-            <div className="step">
+            <div className="step lp-reveal">
               <div className="step__n">3</div>
               <h3>Watch live</h3>
               <p>Results and Q&amp;A update in real time. Dig into analytics when you're done.</p>
@@ -166,7 +190,7 @@ export function HomePage() {
 
       {/* ── CTA band ─────────────────────────────────────── */}
       <section className="cta-band">
-        <div className="lp-wrap">
+        <div className="lp-wrap lp-reveal">
           <h2>Ready to run your first poll?</h2>
           <p>Free to use. Create an account and share a link in under a minute.</p>
           <Link to="/create" className="btn">

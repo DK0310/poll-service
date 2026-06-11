@@ -43,6 +43,8 @@ public class VoteDbContext : DbContext
             e.Property(v => v.PollCode).HasMaxLength(16).IsRequired();
             e.Property(v => v.VoterToken).HasMaxLength(128).IsRequired();
             e.Property(v => v.TextAnswer).HasMaxLength(1000);
+            e.Property(v => v.AuthorName).HasMaxLength(64);
+            e.Property(v => v.AuthorRole).HasMaxLength(20);
             e.Property(v => v.VotedAt).HasDefaultValueSql("GETUTCDATE()");
 
             // One vote per voter per poll

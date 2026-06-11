@@ -166,7 +166,8 @@ public class VoteServiceTests
         var poll = ActivePoll("ot01") with { Type = "OpenText", Options = new() };
         _pollClient.Setup(c => c.GetPollAsync("ot01")).ReturnsAsync(poll);
         _repo.Setup(r => r.HasVotedAsync("ot01", "t")).ReturnsAsync(false);
-        _repo.Setup(r => r.GetTextAnswersAsync("ot01")).ReturnsAsync(new List<string> { "Great poll" });
+        _repo.Setup(r => r.GetTextAnswersAsync("ot01"))
+            .ReturnsAsync(new List<TextAnswerResponse> { new() { Text = "Great poll" } });
         Vote? saved = null;
         _repo.Setup(r => r.AddAsync(It.IsAny<Vote>())).Callback<Vote>(v => saved = v).Returns(Task.CompletedTask);
 
@@ -174,8 +175,43 @@ public class VoteServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal("OpenText", result.Value!.Type);
-        Assert.Contains("Great poll", result.Value.TextAnswers);
+        Assert.Contains(result.Value.TextAnswers, a => a.Text == "Great poll");
         Assert.Equal("Great poll", saved!.TextAnswer);
+    }
+
+    [Fact]
+    public async Task SubmitVote_OpenText_PersistsAuthorLabel_WhenLoggedIn()
+    {
+        var poll = ActivePoll("ot01") with { Type = "OpenText", Options = new() };
+        _pollClient.Setup(c => c.GetPollAsync("ot01")).ReturnsAsync(poll);
+        _repo.Setup(r => r.HasVotedAsync("ot01", "t")).ReturnsAsync(false);
+        _repo.Setup(r => r.GetTextAnswersAsync("ot01")).ReturnsAsync(new List<TextAnswerResponse>());
+        Vote? saved = null;
+        _repo.Setup(r => r.AddAsync(It.IsAny<Vote>())).Callback<Vote>(v => saved = v).Returns(Task.CompletedTask);
+
+        var result = await _sut.SubmitVoteAsync("ot01",
+            new VoteRequest { TextAnswer = "Nice", VoterToken = "t", AuthorName = "alice", AuthorRole = "User" });
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("alice", saved!.AuthorName);
+        Assert.Equal("User", saved.AuthorRole);
+    }
+
+    [Fact]
+    public async Task SubmitVote_OpenText_AuthorIsNull_ForGuest()
+    {
+        var poll = ActivePoll("ot01") with { Type = "OpenText", Options = new() };
+        _pollClient.Setup(c => c.GetPollAsync("ot01")).ReturnsAsync(poll);
+        _repo.Setup(r => r.HasVotedAsync("ot01", "t")).ReturnsAsync(false);
+        _repo.Setup(r => r.GetTextAnswersAsync("ot01")).ReturnsAsync(new List<TextAnswerResponse>());
+        Vote? saved = null;
+        _repo.Setup(r => r.AddAsync(It.IsAny<Vote>())).Callback<Vote>(v => saved = v).Returns(Task.CompletedTask);
+
+        var result = await _sut.SubmitVoteAsync("ot01", new VoteRequest { TextAnswer = "Hi", VoterToken = "t" });
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(saved!.AuthorName);
+        Assert.Null(saved.AuthorRole);
     }
 
     [Fact]

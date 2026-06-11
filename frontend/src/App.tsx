@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, NavLink, Link, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Vote, LogOut, ShieldCheck } from 'lucide-react';
+import { Vote, LogOut, ShieldCheck, Sun, Moon } from 'lucide-react';
 import { HomePage } from './pages/HomePage';
 import { CreatePollPage } from './pages/CreatePollPage';
 import { VotePage } from './pages/VotePage';
@@ -13,8 +13,10 @@ import { RegisterPage } from './pages/RegisterPage';
 import { RequireAuth } from './components/RequireAuth';
 import { RequireAdmin } from './components/RequireAdmin';
 import { useAuthStatus } from './hooks/useAuthStatus';
+import { useTheme } from './hooks/useTheme';
 import { warmBackend } from './api/warmup';
 import { clearToken } from './auth/session';
+import { ToastProvider } from './components/Toast';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   isActive ? 'nav-link nav-link--active' : 'nav-link';
@@ -22,6 +24,7 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 function Nav() {
   const navigate = useNavigate();
   const { authed, isAdmin: admin } = useAuthStatus();
+  const { theme, toggle } = useTheme();
 
   const logout = () => {
     clearToken();
@@ -67,6 +70,18 @@ function Nav() {
               </NavLink>
             </>
           )}
+          <button
+            type="button"
+            className="nav-link theme-toggle"
+            onClick={toggle}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? (
+              <Sun size={16} strokeWidth={2.25} aria-hidden="true" />
+            ) : (
+              <Moon size={16} strokeWidth={2.25} aria-hidden="true" />
+            )}
+          </button>
         </nav>
       </div>
     </header>
@@ -200,7 +215,9 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Layout />
+      <ToastProvider>
+        <Layout />
+      </ToastProvider>
     </BrowserRouter>
   );
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import api, { apiErrorMessage } from '../api/api';
+import { useToast } from '../components/Toast';
 import type { AdminUser, PollInfo } from '../types/poll.types';
 
 /**
@@ -14,6 +15,7 @@ export function useAdmin() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const { toast } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -39,26 +41,29 @@ export function useAdmin() {
   const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
 
   const action = useCallback(
-    async (fn: () => Promise<unknown>) => {
+    async (fn: () => Promise<unknown>, successMsg: string) => {
       setBusy(true);
       setError(null);
       try {
         await fn();
         setReloadKey((k) => k + 1);
+        toast(successMsg);
       } catch (err) {
-        setError(apiErrorMessage(err, 'Action failed'));
+        const msg = apiErrorMessage(err, 'Action failed');
+        setError(msg);
+        toast(msg, 'error');
       } finally {
         setBusy(false);
       }
     },
-    [],
+    [toast],
   );
 
-  const closePoll = (code: string) => action(() => api.patch(`/polls/${code}/close`));
-  const deletePoll = (code: string) => action(() => api.delete(`/polls/${code}`));
+  const closePoll = (code: string) => action(() => api.patch(`/polls/${code}/close`), 'Poll closed');
+  const deletePoll = (code: string) => action(() => api.delete(`/polls/${code}`), 'Poll deleted');
   const setRole = (id: string, role: 'User' | 'Admin') =>
-    action(() => api.post(`/admin/users/${id}/role`, { role }));
-  const deleteUser = (id: string) => action(() => api.delete(`/admin/users/${id}`));
+    action(() => api.post(`/admin/users/${id}/role`, { role }), `Role updated to ${role}`);
+  const deleteUser = (id: string) => action(() => api.delete(`/admin/users/${id}`), 'User deleted');
 
   return { polls, users, loading, error, busy, refresh, closePoll, deletePoll, setRole, deleteUser };
 }

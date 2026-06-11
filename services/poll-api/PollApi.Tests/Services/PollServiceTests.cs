@@ -180,6 +180,47 @@ public class PollServiceTests
         Assert.Contains("not found", result.Error!, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task GetByCode_LazilyClosesExpiredOpenPoll()
+    {
+        // Past expiry but still Open (the background sweep hasn't run yet).
+        var poll = new Poll
+        {
+            Code = "exp01",
+            Question = "Old?",
+            Status = PollStatus.Open,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(-1)
+        };
+        _repo.Setup(r => r.GetByCodeAsync("exp01")).ReturnsAsync(poll);
+
+        var result = await _sut.GetByCodeAsync("exp01");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Closed", result.Value!.Status);   // persisted close reflected in the response
+        Assert.False(result.Value.IsActive);
+        Assert.Equal(PollStatus.Closed, poll.Status);
+        _repo.Verify(r => r.UpdateAsync(poll), Times.Once); // close was persisted
+    }
+
+    [Fact]
+    public async Task GetByCode_DoesNotPersist_WhenNotExpired()
+    {
+        var poll = new Poll
+        {
+            Code = "act01",
+            Question = "Fresh?",
+            Status = PollStatus.Open,
+            ExpiresAt = DateTime.UtcNow.AddHours(1)
+        };
+        _repo.Setup(r => r.GetByCodeAsync("act01")).ReturnsAsync(poll);
+
+        var result = await _sut.GetByCodeAsync("act01");
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value!.IsActive);
+        _repo.Verify(r => r.UpdateAsync(It.IsAny<Poll>()), Times.Never);
+    }
+
     // ── Close (creator-only; logic ready for Phase 6) ───────────
 
     [Fact]

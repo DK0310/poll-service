@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import api, { apiErrorMessage } from '../api/api';
 import { getVoterToken } from '../auth/voter';
+import { getDisplayName, getRole } from '../auth/session';
 import type { VoteResults } from '../types/poll.types';
 
 export function useVote(pollCode: string) {
@@ -16,6 +17,9 @@ export function useVote(pollCode: string) {
         optionIndex,
         textAnswer,
         voterToken: getVoterToken(),
+        // Display-only author label for OpenText answers (null = anonymous guest).
+        authorName: getDisplayName(),
+        authorRole: getRole(),
       });
       setHasVoted(true);
       return data;

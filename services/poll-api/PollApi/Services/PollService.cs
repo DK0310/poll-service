@@ -72,9 +72,19 @@ public class PollService
     public async Task<Result<PollResponse>> GetByCodeAsync(string code)
     {
         var poll = await _repo.GetByCodeAsync(code);
-        return poll is null
-            ? Result<PollResponse>.Failure("Poll not found")
-            : Result<PollResponse>.Success(PollResponse.From(poll));
+        if (poll is null)
+            return Result<PollResponse>.Failure("Poll not found");
+
+        // Lazy expiry: if the poll is past ExpiresAt but the background cleanup sweep
+        // hasn't closed it yet (e.g. the instance was idle on a free-tier host), persist
+        // the close now — so auto-close doesn't depend on the sweep being awake.
+        if (poll.IsExpired && !poll.IsClosed)
+        {
+            poll.Status = PollStatus.Closed;
+            await _repo.UpdateAsync(poll);
+        }
+
+        return Result<PollResponse>.Success(PollResponse.From(poll));
     }
 
     // isAdmin bypasses the creator check (admins moderate any poll).
