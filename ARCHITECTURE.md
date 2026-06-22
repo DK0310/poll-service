@@ -64,6 +64,7 @@ Poll & Survey Builder is a **microservices-based** real-time polling platform bu
 | Component | Technology | Version |
 |---|---|---|
 | Frontend | React + TypeScript + Vite | React 19, Vite 8 |
+| Frontend styling | Tailwind CSS v4 (`@theme`, landing) + token-driven `index.css` (app pages); "Election Night" dark theme | Tailwind 4 |
 | API Gateway | ASP.NET Core + YARP | .NET 10 |
 | Poll Service | ASP.NET Core Web API | .NET 10 |
 | Vote Service | ASP.NET Core Web API + **SignalR** | .NET 10 |
@@ -284,8 +285,7 @@ poll-service/
 │   │   │   ├── useMyPolls.ts               ← Fetch creator's polls
 │   │   │   ├── useAuth.ts                  ← Login/register actions
 │   │   │   ├── useAuthStatus.ts            ← Reactive auth/role state (auth-change event)
-│   │   │   ├── useAdmin.ts                 ← Admin dashboard data + actions
-│   │   │   └── useTheme.ts                 ← Light/dark theme (data-theme on <html>, persisted)
+│   │   │   └── useAdmin.ts                 ← Admin dashboard data + actions
 │   │   ├── components/
 │   │   │   ├── PollForm.tsx                ← Create poll form (question + type + options)
 │   │   │   ├── VoteForm.tsx                ← Vote interface (radios/rating/text by type)
@@ -307,7 +307,9 @@ poll-service/
 │   │   │   ├── AdminDashboardPage.tsx      ← Admin: all polls + users
 │   │   │   ├── LoginPage.tsx               ← Login form
 │   │   │   └── RegisterPage.tsx            ← Registration form
-│   │   └── App.tsx                         ← Router + auth-aware nav (theme toggle) + footers; mounts ToastProvider
+│   │   ├── App.tsx                         ← Router + auth-aware nav + footers (dark BoardNav/BoardFooter on landing); mounts ToastProvider
+│   │   ├── index.css                       ← Legacy design system (app pages) — re-paletted dark "Election Night", in the `legacy` cascade layer
+│   │   └── tailwind.css                    ← Tailwind v4 entry: @theme "Election Night" tokens + imports index.css in the lowest cascade layer
 │   ├── public/                             ← favicon.svg, icons.svg
 │   ├── index.html
 │   ├── .env                                ← VITE_API_URL, VITE_HUB_URL (point to Gateway)
@@ -778,7 +780,7 @@ Docker image naming: `pollbuilder-{service}` (e.g. `pollbuilder-poll-api`) on Do
 | `/login` | LoginPage | Login |
 | `/register` | RegisterPage | Registration |
 
-The shared chrome (auth-aware nav + footer) lives in `App.tsx`; the landing route renders **full-bleed** with a rich marketing footer, while all other routes use the centered layout + thin colophon footer.
+The shared chrome (auth-aware nav + footer) lives in `App.tsx`; the landing route renders **full-bleed** with the dark Tailwind `BoardNav`/`BoardFooter` ("Election Night"), while all other routes use the centered layout + legacy `Nav`/`Footer` (now re-paletted dark to match). The app is **dark-only** (no theme toggle).
 
 ---
 
@@ -808,4 +810,4 @@ The shared chrome (auth-aware nav + footer) lives in `App.tsx`; the landing rout
 | **QR share code in `ShareLink` (`qrcode.react`, SVG)** | A "Show QR" toggle encodes the vote URL so an audience can scan to vote and watch results update live — frontend-only, no backend/route change; SVG renders crisply on a projector and works offline (no external QR service). Kept on a white quiet-zone background for scan reliability |
 | **Client-side CSV export (`utils/csv.ts`)** | "Download CSV" on the Results page builds the file from the already-loaded `VoteResults` (option tallies, or OpenText answers with author) — no new endpoint/route; a UTF-8 BOM makes Excel open it cleanly |
 | **No-dependency toast context (`Toast.tsx`)** | `ToastProvider`/`useToast` give lightweight action feedback (copy/create/close/delete) without adding a library, matching the project's minimal-deps style; styled from tokens so it themes automatically |
-| **Dark mode via `data-theme` token overrides (`useTheme`)** | A nav toggle sets `data-theme` on `<html>` (persisted; defaults from `prefers-color-scheme`). App pages read CSS custom properties, so one dark token block themes them; the marketing landing re-asserts light tokens on `main.lp` and stays light by design |
+| **"Election Night" dark-first UI (Tailwind v4 + re-paletted legacy CSS)** | The frontend redesign (todo Phase 18). The landing (`/`) is rebuilt in **Tailwind v4** (`@theme` tokens in `src/tailwind.css`) as a dark "live results board"; app pages keep their token-driven `index.css` but it's **re-paletted to the same dark palette** and forced dark-first (`<html data-theme="dark">`). The legacy `index.css` is imported into the **lowest CSS cascade layer** so Tailwind utilities win on the landing without disturbing app pages. The old light/dark **toggle (`useTheme`) was removed** — the app is dark-only. Type: Bricolage Grotesque + Hanken Grotesk + Geist Mono. Strategy in `PRODUCT.md`/`DESIGN.md` |

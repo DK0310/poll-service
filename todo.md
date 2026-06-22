@@ -425,6 +425,74 @@ simple. **No backend, schema, endpoint, or Gateway changes** in any of these pha
 
 ---
 
+## Phase 18 — UI redesign: Tailwind CSS + "Election Night" identity  `[UX]`
+
+**Goal:** move the frontend off the hand-rolled `index.css` design system onto **Tailwind CSS v4**, and
+replace the Mentimeter-clone look (navy + pink, Inter) with a distinct identity. Driven by the
+`impeccable` skill. **Frontend-only; no backend/schema/API change.** Strategic + visual context in
+[PRODUCT.md](PRODUCT.md) + [DESIGN.md](DESIGN.md).
+
+**Identity history:** a first attempt ("Rally" — warm/light, full palette) was **rejected** for reading
+as a generic recolored SaaS template (same hero+card-grid+steps+CTA skeleton). Replaced with:
+
+**"Election Night" identity (locked):** the app looks like a **live broadcast results board** —
+- **Palette (drenched dark):** bg `#0B0913`, panel `#15121F`, fg `#F5F2FB`, accents tangerine `#FF6B3D`
+  / grape `#8B6BFF` / teal `#2DD4C4` (they **glow**) + amber `#FFC44D`. The glowing result bar is the
+  structural motif everywhere; mono % + climbing counts carry "live".
+- **Type:** Bricolage Grotesque (display) + Hanken Grotesk (body) + **Geist Mono** (all data) — none on
+  impeccable's overused list.
+- **Tooling:** Tailwind v4 via `@tailwindcss/vite`, CSS-first `@theme` tokens (no `tailwind.config.js`).
+- **Coexistence (fixed):** Preflight skipped **and** the legacy `index.css` imported into the **lowest
+  cascade layer** (`@layer legacy, …` + `@import './index.css' layer(legacy)`), so Tailwind utilities win
+  on the landing while app pages keep their legacy styling. (Unlayered legacy CSS beating utilities was
+  the bug that made the first dark build render old element styles under new backgrounds.)
+
+**Sequencing (chosen): landing first → coexist → migrate the rest page-by-page. App becomes dark-first.**
+
+### Phase 18.1 — Tailwind setup + Election Night landing  `[UX]`  ✅ DONE
+- [x] Installed `tailwindcss@4.3.1` + `@tailwindcss/vite`; fonts `@fontsource/bricolage-grotesque`,
+  `@fontsource-variable/hanken-grotesk`, `@fontsource/geist-mono`
+- [x] `vite.config.ts`: added the Tailwind plugin
+- [x] `src/tailwind.css`: cascade-layer order (`legacy < theme/base/components/utilities`) + `@import
+  './index.css' layer(legacy)`; `@theme` Election Night tokens (dark + glow); `.board-*` motion (scoped)
+- [x] Rebuilt `pages/HomePage.tsx` as a broadcast results board — interactive votable hero board, mono
+  ticker, 4 question types as mini results boards, control-room capability list, big mono `01/02/03`
+  rundown, glowing CTA band. On-mount entrances (no scroll-gated visibility)
+- [x] Election Night landing chrome in `App.tsx` (`BoardNav` + `BoardFooter`) via `Layout` `isLanding`;
+  removed orphaned `RallyNav`/`RallyFooter`/`LandingFooter`; **app `Nav`/`Footer` untouched**
+- [x] Updated [PRODUCT.md](PRODUCT.md) + [DESIGN.md](DESIGN.md)
+- [x] Verified: `npm run lint` clean + `npm run build` green; Playwright screenshots (desktop/mobile/voted)
+  confirm dark board reads as a broadcast, glowing bars, mono numbers, contrast holds, no mobile overflow.
+  Fixed the cascade-layer bug (legacy CSS was overriding utilities → old element styles bled through)
+- **DoD:** ✅ landing renders in the Election Night identity; app pages still run on the legacy CSS; lint + build green.
+- **Deferred to 18.2 (legacy `index.css`, app-page scope):** impeccable flagged 2 pre-existing bans there
+  — gradient text `.h-gradient` (L131) and the toast side-stripe `border-left` (L2015). Fix during migration.
+- **Cleanup:** remove the temp Playwright screenshot scripts/PNGs (`frontend/shot.mjs`, `check.mjs`, `shot-*.png`).
+
+### Phase 18.2 — App pages → Election Night (token re-palette, hybrid)  `[UX]`  ✅ DONE
+Chosen approach: **re-palette the token-driven legacy `index.css`** (fast, low-risk, whole app at once)
+rather than a page-by-page Tailwind rewrite — the app already had a complete dark-mode token system (Phase 17).
+- [x] Base `:root` accents → Election Night (`--rose` tangerine, `--blue` teal, `--violet` grape,
+  brightened `--success`/`--danger`, tangerine `--glow`); fonts → Bricolage / Hanken / Geist Mono; `color-scheme: dark`
+- [x] `:root[data-theme='dark']` neutrals → studio palette (`--bg #0B0913`, `--surface #15121F`, `--ink #F5F2FB`,
+  `--muted #A79FB8`, hairline borders); `.app-header` tint → plum; removed obsolete light-landing re-asserts
+- [x] **Dark-first:** `<html data-theme="dark">`; removed the theme toggle + `useTheme` usage from `App.tsx`; deleted `hooks/useTheme.ts`
+- [x] `LiveBarChart` bar fills gained accent glows; leftover hardcoded light chips fixed (active nav pill, pin-flag, lead-tag, closed-notice)
+- [x] **impeccable bans cleared in `index.css`:** gradient text (`.h-gradient` → solid tangerine) + toast side-stripe (`border-left` → full border + icon color)
+- [x] Verified: `npm run lint` clean + `npm run build` green; Playwright screenshots (login/create/register) confirm cohesive dark Election Night across the app shell + forms
+- [x] Synced [ARCHITECTURE.md](ARCHITECTURE.md) + [DESIGN.md](DESIGN.md)
+- **DoD:** ✅ every app page renders in the unified dark Election Night identity; app is dark-only; lint + build green.
+
+### Phase 18.3 — (Optional) Tailwind purity  `[UX]`  ⏸️ DEFERRED (by decision)
+**Decision:** deferred in favour of pushing the working, unified, all-green app first. 18.3 delivers no
+visual/functional change, only pays off once *every* file is converted + `index.css` removed, and is
+regression-prone (data pages can't be fully runtime-verified without the backend). Revisit only if the
+legacy `index.css` actually needs to go.
+- [ ] Convert app pages/components from legacy classes to Tailwind utilities; retire `index.css` + the `legacy` cascade layer.
+- **DoD:** `index.css` removed; lint + build + backend test suite still green. *(Not required for the demo — the app is already unified.)*
+
+---
+
 ## Cross-cutting checklist (every phase)
 
 - [ ] Tests written alongside the feature (`test-driven-development`)

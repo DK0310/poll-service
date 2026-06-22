@@ -1,0 +1,136 @@
+/* ============================================================
+   Tailwind v4 entry — "Election Night" identity (Phase 18)
+   Dark, dramatic, data-forward. The app feels like a live
+   broadcast results board: glowing multi-color bars, mono
+   percentages, a climbing vote count.
+
+   Preflight is intentionally NOT imported: the legacy index.css
+   still styles app pages not yet migrated, and we don't want
+   Tailwind's global reset to disturb them. Utilities are
+   single-class selectors, so they still win over index.css's
+   element selectors by specificity on the rebuilt landing.
+   ============================================================ */
+@layer legacy, theme, base, components, utilities;
+/* Legacy hand-rolled CSS (still styles un-migrated app pages) goes in the
+   LOWEST cascade layer so the new Tailwind utilities + .board components win
+   on the rebuilt landing. Unlayered CSS would otherwise beat all utilities
+   regardless of specificity — which made the landing render old element
+   styles (h1 colour, link blue, fonts) under new backgrounds. */
+@import './index.css' layer(legacy);
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@theme {
+  /* ── Type ──────────────────────────────────────────────── */
+  --font-display: 'Bricolage Grotesque', 'Hanken Grotesk Variable', system-ui, sans-serif;
+  --font-body: 'Hanken Grotesk Variable', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /* ── Color (dark, drenched — the "studio") ─────────────── */
+  --color-bg: #0b0913; /* near-black plum-blue base */
+  --color-panel: #15121f; /* boards / cards */
+  --color-panel-2: #1e1a2b; /* rows, elevated bits */
+  --color-line: rgba(255, 255, 255, 0.1); /* hairlines */
+  --color-line-strong: rgba(255, 255, 255, 0.18);
+
+  --color-fg: #f5f2fb; /* primary text */
+  --color-fg-muted: #a79fb8; /* muted text — ≥7:1 on bg */
+  --color-fg-faint: #6f6880; /* faintest labels */
+
+  --color-tangerine: #ff6b3d; /* primary / leading bar */
+  --color-grape: #8b6bff; /* accent 2 */
+  --color-teal: #2dd4c4; /* accent 3 */
+  --color-amber: #ffc44d; /* "live now" / winner */
+
+  /* ── Radii ─────────────────────────────────────────────── */
+  --radius-board: 1.25rem;
+
+  /* ── Elevation + glow ──────────────────────────────────── */
+  --shadow-board: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 30px 60px -28px rgba(0, 0, 0, 0.8);
+  --shadow-glow-tangerine: 0 0 28px -4px rgba(255, 107, 61, 0.55);
+  --shadow-glow-grape: 0 0 28px -4px rgba(139, 107, 255, 0.5);
+  --shadow-glow-teal: 0 0 28px -4px rgba(45, 212, 196, 0.5);
+
+  /* ── Motion ────────────────────────────────────────────── */
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer components {
+  /* Landing root — dark studio. Scoped so legacy app pages stay put. */
+  .board {
+    font-family: var(--font-body);
+    color: var(--color-fg);
+    background: var(--color-bg);
+  }
+
+  /* Faint broadcast grid texture for dark sections. */
+  .board-grid {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+
+  /* Entrance — staggered rise */
+  .board-rise {
+    animation: board-rise 0.7s var(--ease-out-quint) both;
+  }
+  .board-rise-2 {
+    animation: board-rise 0.7s var(--ease-out-quint) both;
+    animation-delay: 0.12s;
+  }
+  @keyframes board-rise {
+    from {
+      opacity: 0;
+      transform: translateY(18px);
+    }
+  }
+
+  /* Result bar grows in */
+  .board-bar {
+    transform-origin: left center;
+    animation: board-bar 0.9s var(--ease-out-quint) both;
+  }
+  @keyframes board-bar {
+    from {
+      transform: scaleX(0);
+    }
+  }
+
+  /* Live pulse dot */
+  .board-pulse {
+    animation: board-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes board-pulse {
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+  /* Ticker marquee */
+  .board-ticker {
+    animation: board-ticker 28s linear infinite;
+  }
+  @keyframes board-ticker {
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  /* Entrance that runs on mount — never gates visibility on scroll, so
+     sections can't ship blank in headless renders or if JS/IO fails. */
+  .board-reveal {
+    animation: board-rise 0.7s var(--ease-out-quint) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-rise,
+  .board-rise-2,
+  .board-bar,
+  .board-pulse,
+  .board-ticker,
+  .board-reveal {
+    animation: none;
+  }
+}

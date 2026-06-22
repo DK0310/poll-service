@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { BrowserRouter, NavLink, Link, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Vote, LogOut, ShieldCheck, Sun, Moon } from 'lucide-react';
+import { Vote, LogOut, ShieldCheck } from 'lucide-react';
 import { HomePage } from './pages/HomePage';
 import { CreatePollPage } from './pages/CreatePollPage';
 import { VotePage } from './pages/VotePage';
@@ -13,7 +13,6 @@ import { RegisterPage } from './pages/RegisterPage';
 import { RequireAuth } from './components/RequireAuth';
 import { RequireAdmin } from './components/RequireAdmin';
 import { useAuthStatus } from './hooks/useAuthStatus';
-import { useTheme } from './hooks/useTheme';
 import { warmBackend } from './api/warmup';
 import { clearToken } from './auth/session';
 import { ToastProvider } from './components/Toast';
@@ -24,7 +23,6 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 function Nav() {
   const navigate = useNavigate();
   const { authed, isAdmin: admin } = useAuthStatus();
-  const { theme, toggle } = useTheme();
 
   const logout = () => {
     clearToken();
@@ -70,21 +68,172 @@ function Nav() {
               </NavLink>
             </>
           )}
-          <button
-            type="button"
-            className="nav-link theme-toggle"
-            onClick={toggle}
-            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {theme === 'dark' ? (
-              <Sun size={16} strokeWidth={2.25} aria-hidden="true" />
-            ) : (
-              <Moon size={16} strokeWidth={2.25} aria-hidden="true" />
-            )}
-          </button>
         </nav>
       </div>
     </header>
+  );
+}
+
+// ── Election Night landing chrome (Phase 18) ───────────────────
+// The landing page uses its own dark Tailwind "board" header + footer so the
+// not-yet-migrated app pages keep the legacy `Nav`/`Footer` untouched.
+const boardNavLink = ({ isActive }: { isActive: boolean }) =>
+  [
+    'inline-flex items-center gap-1.5 rounded-full px-4 py-2 font-display text-sm font-semibold transition-colors duration-150',
+    isActive ? 'bg-panel-2 text-tangerine' : 'text-fg-muted hover:bg-panel-2 hover:text-fg',
+  ].join(' ');
+
+function BoardNav() {
+  const navigate = useNavigate();
+  const { authed, isAdmin: admin } = useAuthStatus();
+
+  const logout = () => {
+    clearToken();
+    navigate('/');
+  };
+
+  return (
+    <header className="board sticky top-0 z-20 border-b border-line bg-bg/85 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3">
+        <Link to="/" className="inline-flex items-center gap-2.5" aria-label="PollBuilder — home">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-tangerine text-bg shadow-glow-tangerine">
+            <Vote size={20} strokeWidth={2.25} />
+          </span>
+          <span className="font-display text-xl font-extrabold tracking-tight text-fg">
+            PollBuilder
+          </span>
+        </Link>
+        <nav className="flex items-center gap-1" aria-label="Primary">
+          <NavLink to="/create" className={boardNavLink}>
+            Create
+          </NavLink>
+          {authed ? (
+            <>
+              <NavLink to="/my-polls" className={boardNavLink}>
+                My Polls
+              </NavLink>
+              {admin && (
+                <NavLink to="/admin" className={boardNavLink}>
+                  <ShieldCheck size={15} strokeWidth={2.25} aria-hidden="true" />
+                  Admin
+                </NavLink>
+              )}
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 font-display text-sm font-semibold text-fg-muted transition-colors duration-150 hover:bg-panel-2 hover:text-fg"
+                onClick={logout}
+              >
+                <LogOut size={15} strokeWidth={2.25} aria-hidden="true" />
+                Log out
+              </button>
+            </>
+          ) : (
+            <>
+              <NavLink to="/login" className={boardNavLink}>
+                Log in
+              </NavLink>
+              <NavLink
+                to="/register"
+                className="inline-flex items-center rounded-full bg-tangerine px-4 py-2 font-display text-sm font-semibold text-bg transition-colors duration-150 hover:bg-amber"
+              >
+                Register
+              </NavLink>
+            </>
+          )}
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+const footerCols = [
+  {
+    h: 'Product',
+    links: [
+      { label: 'Create a poll', to: '/create' },
+      { label: 'Live results', href: '#features' },
+      { label: 'Analytics', href: '#features' },
+      { label: 'Q&A', href: '#features' },
+    ],
+  },
+  {
+    h: 'Question types',
+    links: [
+      { label: 'Multiple choice', href: '#features' },
+      { label: 'Yes / No', href: '#features' },
+      { label: 'Rating 1–5', href: '#features' },
+      { label: 'Open text', href: '#features' },
+    ],
+  },
+  {
+    h: 'Account',
+    links: [
+      { label: 'Log in', to: '/login' },
+      { label: 'Register', to: '/register' },
+      { label: 'My polls', to: '/my-polls' },
+    ],
+  },
+  {
+    h: 'Project',
+    links: [
+      { label: 'How it works', href: '#how' },
+      { label: 'GitHub', href: 'https://github.com/DK0310/poll-service' },
+      { label: 'Live demo', to: '/create' },
+    ],
+  },
+];
+
+function BoardFooter() {
+  return (
+    <footer className="board border-t border-line bg-panel text-fg-muted">
+      <div className="mx-auto max-w-6xl px-6 py-14">
+        <div className="grid grid-cols-2 gap-8 md:grid-cols-[1.6fr_repeat(4,1fr)]">
+          <div className="col-span-2 md:col-span-1">
+            <Link to="/" className="inline-flex items-center gap-2.5">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-tangerine text-bg shadow-glow-tangerine">
+                <Vote size={20} strokeWidth={2.25} />
+              </span>
+              <span className="font-display text-xl font-extrabold tracking-tight text-fg">
+                PollBuilder
+              </span>
+            </Link>
+            <p className="mt-4 max-w-60 text-sm leading-relaxed">
+              Real-time polls &amp; surveys with live results. An AMD201 microservices project.
+            </p>
+          </div>
+          {footerCols.map((col) => (
+            <div key={col.h}>
+              <h4 className="font-display text-sm font-bold text-fg">{col.h}</h4>
+              <ul className="mt-3.5 space-y-2">
+                {col.links.map((l) => (
+                  <li key={l.label}>
+                    {'to' in l && l.to ? (
+                      <Link to={l.to} className="text-sm transition-colors hover:text-fg">
+                        {l.label}
+                      </Link>
+                    ) : (
+                      <a
+                        href={l.href}
+                        className="text-sm transition-colors hover:text-fg"
+                        {...(l.href?.startsWith('http')
+                          ? { target: '_blank', rel: 'noreferrer' }
+                          : {})}
+                      >
+                        {l.label}
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6 font-mono text-xs">
+          <span>Poll &amp; Survey Builder · AMD201</span>
+          <span>Live results in real time · © 2026</span>
+        </div>
+      </div>
+    </footer>
   );
 }
 
@@ -115,65 +264,12 @@ function Footer() {
   );
 }
 
-// Rich marketing footer — shown only on the landing page (/).
-function LandingFooter() {
-  return (
-    <footer className="lp-foot">
-      <div className="lp-wrap">
-        <div className="foot-grid">
-          <div>
-            <Link to="/" className="brand">
-              <span className="brand__mark" aria-hidden="true">
-                <Vote size={20} strokeWidth={2.25} />
-              </span>
-              <span className="brand__text">PollBuilder</span>
-            </Link>
-            <p style={{ marginTop: 14, fontSize: 13, color: '#8a8aa6', maxWidth: 240 }}>
-              Real-time polls &amp; surveys with live results. An AMD201 microservices project.
-            </p>
-          </div>
-          <div>
-            <h4>Product</h4>
-            <Link to="/create">Create a poll</Link>
-            <a href="#features">Live results</a>
-            <a href="#features">Analytics</a>
-            <a href="#features">Q&amp;A</a>
-          </div>
-          <div>
-            <h4>Question types</h4>
-            <a href="#features">Multiple choice</a>
-            <a href="#features">Yes / No</a>
-            <a href="#features">Rating 1–5</a>
-            <a href="#features">Open text</a>
-          </div>
-          <div>
-            <h4>Account</h4>
-            <Link to="/login">Log in</Link>
-            <Link to="/register">Register</Link>
-            <Link to="/my-polls">My polls</Link>
-          </div>
-          <div>
-            <h4>Project</h4>
-            <a href="#how">How it works</a>
-            <a href="https://github.com/DK0310/poll-service" target="_blank" rel="noreferrer">GitHub</a>
-            <Link to="/create">Live demo</Link>
-          </div>
-        </div>
-        <div className="lp-foot__legal">
-          <span className="mono">Poll &amp; Survey Builder · AMD201</span>
-          <span>Live results in real time · © 2026</span>
-        </div>
-      </div>
-    </footer>
-  );
-}
-
 function Layout() {
   const isLanding = useLocation().pathname === '/';
 
   return (
     <div className="app-shell">
-      <Nav />
+      {isLanding ? <BoardNav /> : <Nav />}
       <main className={isLanding ? 'lp' : undefined}>
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -202,7 +298,7 @@ function Layout() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
-      {isLanding ? <LandingFooter /> : <Footer />}
+      {isLanding ? <BoardFooter /> : <Footer />}
     </div>
   );
 }
