@@ -51,14 +51,15 @@ export function PollForm({ onSubmit, disabled }: PollFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="poll-form">
-      <div className="form-group">
-        <label htmlFor="question">
-          Your question <span className="req" aria-hidden="true">*</span>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <div>
+        <label htmlFor="question" className="board-label">
+          Your question <span className="text-tangerine" aria-hidden="true">*</span>
         </label>
         <input
           id="question"
           type="text"
+          className="board-input"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="What would you like to ask?"
@@ -67,82 +68,110 @@ export function PollForm({ onSubmit, disabled }: PollFormProps) {
         />
       </div>
 
-      <div className="form-group">
-        <span className="field-label" id="type-label">Question type</span>
-        <div className="seg" role="group" aria-labelledby="type-label">
-          {TYPES.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              className={`seg-btn${type === t.value ? ' seg-btn--on' : ''}`}
-              aria-pressed={type === t.value}
-              onClick={() => setType(t.value)}
-              disabled={disabled}
-            >
-              {t.label}
-            </button>
-          ))}
+      <div>
+        <span className="board-label" id="type-label">
+          Question type
+        </span>
+        <div className="flex flex-wrap gap-2" role="group" aria-labelledby="type-label">
+          {TYPES.map((t) => {
+            const on = type === t.value;
+            return (
+              <button
+                key={t.value}
+                type="button"
+                className={[
+                  'min-h-10 rounded-full border px-4 py-2 font-display text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50',
+                  on
+                    ? 'border-transparent bg-tangerine text-bg shadow-glow-tangerine'
+                    : 'border-line bg-panel-2 text-fg-muted hover:border-tangerine hover:text-fg',
+                ].join(' ')}
+                aria-pressed={on}
+                onClick={() => setType(t.value)}
+                disabled={disabled}
+              >
+                {t.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {needsOptions ? (
-        <div className="form-group">
-          <span className="field-label">
-            Answer options <span className="req" aria-hidden="true">*</span>
+        <div>
+          <span className="board-label">
+            Answer options <span className="text-tangerine" aria-hidden="true">*</span>
           </span>
-          {options.map((opt, i) => (
-            <div key={i} className="opt-row">
-              <span className="opt-num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-              <input
-                type="text"
-                value={opt}
-                onChange={(e) => updateOption(i, e.target.value)}
-                placeholder={`Option ${i + 1}`}
-                aria-label={`Option ${i + 1}`}
-                disabled={disabled}
-                required
-              />
-              {options.length > MIN_OPTIONS && (
-                <button
-                  type="button"
-                  onClick={() => removeOption(i)}
-                  className="opt-remove"
-                  disabled={disabled}
-                  aria-label={`Remove option ${i + 1}`}
+          <div className="flex flex-col gap-2">
+            {options.map((opt, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span
+                  className="grid h-9 w-9 flex-none place-items-center rounded-lg bg-panel-2 font-mono text-xs tabular-nums text-tangerine"
+                  aria-hidden="true"
                 >
-                  <X size={16} strokeWidth={2.25} />
-                </button>
-              )}
-            </div>
-          ))}
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <input
+                  type="text"
+                  className="board-input flex-1"
+                  value={opt}
+                  onChange={(e) => updateOption(i, e.target.value)}
+                  placeholder={`Option ${i + 1}`}
+                  aria-label={`Option ${i + 1}`}
+                  disabled={disabled}
+                  required
+                />
+                {options.length > MIN_OPTIONS && (
+                  <button
+                    type="button"
+                    onClick={() => removeOption(i)}
+                    className="grid h-10 w-10 flex-none place-items-center rounded-lg border border-line text-fg-muted transition-colors hover:border-tangerine hover:text-tangerine disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={disabled}
+                    aria-label={`Remove option ${i + 1}`}
+                  >
+                    <X size={16} strokeWidth={2.25} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
           {options.length < MAX_OPTIONS && (
-            <button type="button" onClick={addOption} className="opt-add" disabled={disabled}>
+            <button
+              type="button"
+              onClick={addOption}
+              className="mt-2 inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-dashed border-tangerine/60 px-4 py-2 font-display text-sm font-medium text-tangerine transition-colors hover:bg-tangerine/10 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={disabled}
+            >
               <Plus size={16} strokeWidth={2.25} aria-hidden="true" /> Add option
             </button>
           )}
         </div>
       ) : (
-        <p className="type-hint muted">{hint}</p>
+        <p className="-mt-2 text-sm text-fg-muted">{hint}</p>
       )}
 
-      <div className="form-group">
-        <label htmlFor="expiry">Closes (optional)</label>
+      <div>
+        <label htmlFor="expiry" className="board-label">
+          Closes (optional)
+        </label>
         <select
           id="expiry"
+          className="board-input"
           value={expiryHours ?? ''}
           onChange={(e) => setExpiryHours(e.target.value ? Number(e.target.value) : undefined)}
           disabled={disabled}
         >
           {EXPIRY.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
           ))}
         </select>
       </div>
 
-      <button type="submit" className="btn btn--block" disabled={disabled}>
+      <button type="submit" className="board-btn board-btn--block" disabled={disabled}>
         {disabled ? (
           <>
-            <Loader2 size={18} strokeWidth={2.25} className="spin" aria-hidden="true" /> Creating…
+            <Loader2 size={18} strokeWidth={2.25} className="board-spin" aria-hidden="true" /> Creating…
           </>
         ) : (
           'Create poll'

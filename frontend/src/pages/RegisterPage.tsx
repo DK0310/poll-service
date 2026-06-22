@@ -16,22 +16,28 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="page page--narrow">
-      <div className="card auth-card">
-        <div className="auth-head">
-          <span className="auth-badge" aria-hidden="true">
+    <div className="board mx-auto w-full max-w-sm">
+      <div className="board-panel p-7 sm:p-8">
+        <div className="mb-7 flex flex-col items-center text-center">
+          <span
+            className="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-tangerine text-bg shadow-glow-tangerine"
+            aria-hidden="true"
+          >
             <UserPlus size={24} strokeWidth={2.25} />
           </span>
-          <h1>Create an account</h1>
-          <p className="muted">Sign up to create and manage polls.</p>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-fg">Create an account</h1>
+          <p className="mt-1 text-fg-muted">Sign up to create and manage polls.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label htmlFor="email">Email</label>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label htmlFor="email" className="board-label">
+              Email
+            </label>
             <input
               id="email"
               type="email"
+              className="board-input"
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -39,12 +45,15 @@ export function RegisterPage() {
               required
             />
           </div>
-          <div className="form-group">
-            <label htmlFor="password">Password <span className="muted">(min 6 characters)</span></label>
-            <div className="pw-wrap">
+          <div>
+            <label htmlFor="password" className="board-label">
+              Password <span className="font-body normal-case tracking-normal text-fg-faint">(min 6 characters)</span>
+            </label>
+            <div className="relative">
               <input
                 id="password"
                 type={showPw ? 'text' : 'password'}
+                className="board-input pr-12"
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -54,7 +63,7 @@ export function RegisterPage() {
               />
               <button
                 type="button"
-                className="pw-toggle"
+                className="absolute right-1.5 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-lg text-fg-muted transition-colors hover:text-fg"
                 onClick={() => setShowPw((s) => !s)}
                 aria-label={showPw ? 'Hide password' : 'Show password'}
               >
@@ -63,15 +72,22 @@ export function RegisterPage() {
             </div>
           </div>
 
-          <button type="submit" className="btn btn--block" disabled={loading}>
-            {loading && <Loader2 size={18} strokeWidth={2.25} className="spin" aria-hidden="true" />}
+          <button type="submit" className="board-btn board-btn--block mt-1" disabled={loading}>
+            {loading && <Loader2 size={18} strokeWidth={2.25} className="board-spin" aria-hidden="true" />}
             {loading ? 'Creating account…' : 'Create account'}
           </button>
-          {error && <p className="error" role="alert">{error}</p>}
+          {error && (
+            <p className="text-sm text-tangerine" role="alert">
+              {error}
+            </p>
+          )}
         </form>
 
-        <p className="auth-foot">
-          Already have an account? <Link to="/login">Log in</Link>
+        <p className="mt-6 text-center text-sm text-fg-muted">
+          Already have an account?{' '}
+          <Link to="/login" className="font-semibold text-tangerine hover:underline">
+            Log in
+          </Link>
         </p>
       </div>
     </div>

@@ -21,12 +21,14 @@ export function ShareLink({ code }: ShareLinkProps) {
   };
 
   return (
-    <div className="share-link-wrap">
-      <div className="share-link">
-        <code className="share-link__url">{url}</code>
+    <div className="flex flex-col gap-4">
+      <div className="flex max-w-full items-center gap-2">
+        <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap rounded-lg border border-line bg-bg px-3.5 py-2.5 text-left font-mono text-sm text-fg">
+          {url}
+        </code>
         <button
           onClick={copy}
-          className="btn-outline share-link__copy"
+          className="board-btn-outline flex-none whitespace-nowrap !px-4"
           aria-label={copied ? 'Link copied' : 'Copy share link'}
         >
           {copied ? (
@@ -42,7 +44,7 @@ export function ShareLink({ code }: ShareLinkProps) {
         <button
           type="button"
           onClick={() => setShowQr((v) => !v)}
-          className="btn-outline share-link__qr-toggle"
+          className="board-btn-outline flex-none whitespace-nowrap !px-4"
           aria-expanded={showQr}
           aria-label={showQr ? 'Hide QR code' : 'Show QR code'}
         >
@@ -50,9 +52,10 @@ export function ShareLink({ code }: ShareLinkProps) {
         </button>
       </div>
       {showQr && (
-        <div className="share-link__qr">
-          <QRCodeSVG value={url} size={180} aria-label="QR code for this poll" />
-          <p className="muted">Scan to open this poll</p>
+        // QR stays on a white quiet-zone for reliable scanning, even in the dark theme.
+        <div className="mx-auto flex flex-col items-center gap-2 rounded-xl border border-line bg-white p-4">
+          <QRCodeSVG value={url} size={180} className="block h-auto" aria-label="QR code for this poll" />
+          <p className="text-sm text-[#6f6880]">Scan to open this poll</p>
         </div>
       )}
     </div>

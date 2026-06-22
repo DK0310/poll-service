@@ -41,6 +41,7 @@
   --color-grape: #8b6bff; /* accent 2 */
   --color-teal: #2dd4c4; /* accent 3 */
   --color-amber: #ffc44d; /* "live now" / winner */
+  --color-danger: #ff7a7a; /* destructive actions / errors */
 
   /* ── Radii ─────────────────────────────────────────────── */
   --radius-board: 1.25rem;
@@ -121,6 +122,167 @@
      sections can't ship blank in headless renders or if JS/IO fails. */
   .board-reveal {
     animation: board-rise 0.7s var(--ease-out-quint) both;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     App-screen vocabulary (Phase 18.3)
+     Reusable controls so every task screen speaks one language
+     (product register: consistent component vocabulary). Authored
+     as component classes — they sit above the legacy layer, so
+     they win over index.css element styles on the rebuilt pages.
+     ══════════════════════════════════════════════════════════ */
+
+  /* Panel — the studio card used across app screens. */
+  .board-panel {
+    background: var(--color-panel);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-board);
+    box-shadow: var(--shadow-board);
+  }
+
+  /* Field label — small display caps. */
+  .board-label {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-fg-muted);
+    margin-bottom: 0.5rem;
+  }
+
+  /* Text field — inputs, selects, textareas. */
+  .board-input {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid var(--color-line);
+    border-radius: 0.625rem;
+    background: var(--color-panel-2);
+    color: var(--color-fg);
+    font-family: var(--font-body);
+    font-size: 1rem;
+    padding: 0.7rem 0.9rem;
+    transition:
+      border-color 180ms var(--ease-out-quint),
+      box-shadow 180ms var(--ease-out-quint);
+  }
+  /* Placeholder must clear 4.5:1 — fg-muted, not the faint label grey. */
+  .board-input::placeholder {
+    color: var(--color-fg-muted);
+    opacity: 1;
+  }
+  .board-input:focus-visible {
+    outline: none;
+    border-color: var(--color-tangerine);
+    box-shadow: 0 0 0 3px rgba(255, 107, 61, 0.3);
+  }
+
+  /* Primary action — tangerine pill that glows, hover → amber. */
+  .board-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    border: 0;
+    border-radius: 0.625rem;
+    background: var(--color-tangerine);
+    color: var(--color-bg);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 0.9375rem;
+    padding: 0.75rem 1.5rem;
+    cursor: pointer;
+    box-shadow: var(--shadow-glow-tangerine);
+    transition:
+      background 180ms var(--ease-out-quint),
+      transform 180ms var(--ease-out-quint);
+  }
+  .board-btn:hover {
+    background: var(--color-amber);
+    transform: translateY(-1px);
+  }
+  .board-btn:active {
+    transform: translateY(0);
+  }
+  .board-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+  .board-btn--block {
+    display: flex;
+    width: 100%;
+  }
+
+  /* Secondary action — ghost on the dark studio. */
+  .board-btn-outline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 0.625rem;
+    background: transparent;
+    color: var(--color-fg);
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 0.9375rem;
+    padding: 0.75rem 1.25rem;
+    cursor: pointer;
+    transition:
+      border-color 180ms var(--ease-out-quint),
+      background 180ms var(--ease-out-quint);
+  }
+  .board-btn-outline:hover {
+    border-color: var(--color-fg-muted);
+    background: var(--color-panel-2);
+  }
+  .board-btn-outline:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Result bar — the structural motif. Track + accent fill that
+     grows from the left; the leader glows. */
+  .board-bar-track {
+    height: 1rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-line);
+    background: var(--color-panel-2);
+    overflow: hidden;
+  }
+  .board-bar-fill {
+    height: 100%;
+    width: 100%;
+    border-radius: 999px;
+    transform-origin: left center;
+    transition: transform 0.6s var(--ease-out-quint);
+  }
+  .board-bar-fill--lead {
+    background: var(--color-tangerine);
+    box-shadow: var(--shadow-glow-tangerine);
+  }
+  .board-bar-fill--teal {
+    background: var(--color-teal);
+    box-shadow: var(--shadow-glow-teal);
+  }
+  .board-bar-fill--grape {
+    background: var(--color-grape);
+    box-shadow: var(--shadow-glow-grape);
+  }
+
+  /* Spinner for in-button loading. */
+  .board-spin {
+    animation: board-spin 0.8s linear infinite;
+  }
+  @keyframes board-spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 }
 

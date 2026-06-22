@@ -18,15 +18,18 @@ export function CreatePollPage() {
   // useAuthStatus is reactive, so logging out here flips straight to the CTA.
   if (!authed) {
     return (
-      <div className="page">
-        <div className="card empty-state">
-          <h1>Create a poll</h1>
-          <p className="muted">Log in to create a poll and manage it from your dashboard.</p>
-          <Link to="/login" className="btn">
+      <div className="board mx-auto w-full max-w-md">
+        <div className="board-panel p-7 text-center sm:p-8">
+          <h1 className="font-display text-2xl font-bold tracking-tight text-fg">Create a poll</h1>
+          <p className="mt-2 text-fg-muted">Log in to create a poll and manage it from your dashboard.</p>
+          <Link to="/login" className="board-btn mt-6">
             <LogIn size={18} strokeWidth={2.25} aria-hidden="true" /> Log in to create
           </Link>
-          <p className="muted" style={{ marginTop: 'var(--space-md)' }}>
-            No account? <Link to="/register">Sign up</Link>
+          <p className="mt-4 text-sm text-fg-muted">
+            No account?{' '}
+            <Link to="/register" className="font-semibold text-tangerine hover:underline">
+              Sign up
+            </Link>
           </p>
         </div>
       </div>
@@ -48,19 +51,22 @@ export function CreatePollPage() {
 
   if (result) {
     return (
-      <div className="page">
-        <div className="card create-success">
-          <span className="success-badge" aria-hidden="true">
+      <div className="board mx-auto w-full max-w-xl">
+        <div className="board-panel p-7 text-center sm:p-9">
+          <span
+            className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-tangerine text-bg shadow-glow-tangerine"
+            aria-hidden="true"
+          >
             <Check size={26} strokeWidth={2.5} />
           </span>
-          <h1 className="h-gradient">Poll created</h1>
-          <p className="created-question">{result.question}</p>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-tangerine">Poll created</h1>
+          <p className="mx-auto mb-6 mt-1 max-w-md font-display text-lg text-fg">{result.question}</p>
           <ShareLink code={result.code} />
-          <div className="created-links">
-            <Link to={`/poll/${result.code}`} className="btn">
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link to={`/poll/${result.code}`} className="board-btn">
               Open voting page <ArrowRight size={18} strokeWidth={2.25} aria-hidden="true" />
             </Link>
-            <Link to={`/poll/${result.code}/results`} className="btn-outline">
+            <Link to={`/poll/${result.code}/results`} className="board-btn-outline">
               <BarChart3 size={18} strokeWidth={2.25} aria-hidden="true" /> View live results
             </Link>
           </div>
@@ -70,13 +76,13 @@ export function CreatePollPage() {
   }
 
   return (
-    <div className="page">
-      <div className="card">
-        <h1>Create a poll</h1>
-        <p className="muted page-intro">Ask anything — share a link and watch results update live.</p>
+    <div className="board mx-auto w-full max-w-xl">
+      <div className="board-panel p-7 sm:p-9">
+        <h1 className="font-display text-2xl font-bold tracking-tight text-fg">Create a poll</h1>
+        <p className="mb-7 mt-1 text-fg-muted">Ask anything — share a link and watch results update live.</p>
         <PollForm onSubmit={handleSubmit} disabled={loading} />
         {error && (
-          <p className="error" role="alert">
+          <p className="mt-4 text-sm text-tangerine" role="alert">
             {error}
           </p>
         )}
