@@ -316,16 +316,21 @@ poll-service/
 │   ├── vite.config.ts
 │   ├── package.json
 │   ├── tsconfig.json
-│   ├── nginx.conf                          ← SPA fallback + proxy /api and /hubs to Gateway (compose only)
+│   ├── nginx.conf                          ← SPA fallback + proxy /api and /hubs to Gateway (compose only; envsubst template — needs GATEWAY_URL at runtime)
 │   └── Dockerfile
 │
 ├── .github/workflows/
 │   └── ci-cd.yml                           ← Lint/test → build/push → deploy ALL services
 ├── docker-compose.yml                      ← Local orchestration (all services)
 ├── ARCHITECTURE.md                         ← This file (authoritative)
+├── ARCHITECTURE_AUDIT.md                   ← Latest doc↔code alignment audit record
 ├── DEPLOYMENT.md                           ← Render/CI deploy guide + secrets
 ├── KNOWN_ISSUES.md                         ← Tracked defects (ISSUE-001…)
 ├── CONTRIBUTING.md                         ← Branch/commit conventions, prerequisites
+├── PRODUCT.md                              ← Product strategy (informs the UI redesign)
+├── DESIGN.md                               ← "Election Night" design system spec
+├── todo.md                                 ← Phased build plan / progress log
+├── docs/                                   ← Supplementary docs (diagrams, report template)
 └── README.md
 ```
 
@@ -681,6 +686,7 @@ Three roles:
 | Identity API | `Admin__Emails__0` | *(unset)* | Email(s) promoted to `Admin` on startup (`__0`, `__1`, …) |
 | Frontend | `VITE_API_URL` | `http://localhost:5000/api` | Gateway REST URL |
 | Frontend | `VITE_HUB_URL` | `http://localhost:5000/hubs/poll` | SignalR via Gateway |
+| Frontend | `GATEWAY_URL` | `http://gateway:8080` | Nginx proxy target (compose/Docker image only — `nginx.conf` is an envsubst template; set at container runtime, not build time) |
 
 > **Shared secret:** `Jwt__Secret` must be identical in the Gateway and Identity API. Dev values shown above are placeholders — production values come from the platform's secret store, never from git.
 

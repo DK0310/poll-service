@@ -4,12 +4,23 @@
 > system architecture in [ARCHITECTURE.md](ARCHITECTURE.md). Tokens are defined in
 > [frontend/src/tailwind.css](frontend/src/tailwind.css) as Tailwind v4 `@theme` variables.
 >
-> **Status:** the landing page (`/`) ships in Tailwind (Phase 18.1). The app pages were brought
-> onto the same identity in **Phase 18.2 via a token re-palette** (hybrid approach): the legacy
-> `frontend/src/index.css` keeps its markup/classes but its tokens were re-paletted to the dark
-> Election Night palette and forced **dark-first** (`<html data-theme="dark">`); the light/dark
-> toggle (`useTheme`) was removed. A later pass may convert app pages to Tailwind utilities and
-> retire `index.css`. The whole app is now visually unified and dark-only.
+> **Status:** the landing page (`/`) ships in Tailwind (Phase 18.1). The app pages were first brought
+> onto the same identity in **Phase 18.2 via a token re-palette** (legacy `index.css`, dark-first via
+> `<html data-theme="dark">`, `useTheme` toggle removed). In **Phase 18.3** the six core screens —
+> Login, Register, Create (`PollForm`), Vote (`VoteForm`), Results (`LiveBarChart`), Admin, plus
+> `ShareLink` + `QandAPanel` — were **rebuilt as native Tailwind utilities** on a shared app-screen
+> component vocabulary (see "App-screen components" below). Expression is split by surface (product
+> register): **restrained** forms (Login/Register/Create), **broadcast** data screens
+> (Vote/Results/Admin). My Polls + Analytics remain on the re-paletted `index.css` until a later pass
+> retires it. The whole app is visually unified and dark-only.
+
+## App-screen components (Phase 18.3)
+
+Reusable controls in `tailwind.css` (`@layer components`, above the `legacy` layer so they win over
+`index.css`): `.board-panel` (studio card), `.board-label`, `.board-input` (placeholder ≥ 4.5:1 via
+`fg-muted`, tangerine focus ring), `.board-btn` (tangerine pill, glow, hover → amber) + `--block`,
+`.board-btn-outline` (ghost), `.board-bar-track` / `.board-bar-fill--lead|teal|grape` (the result-bar
+motif with accent glows), `.board-spin`. New token: `--color-danger` for destructive actions/errors.
 
 ## Theme
 

@@ -483,13 +483,21 @@ rather than a page-by-page Tailwind rewrite — the app already had a complete d
 - [x] Synced [ARCHITECTURE.md](ARCHITECTURE.md) + [DESIGN.md](DESIGN.md)
 - **DoD:** ✅ every app page renders in the unified dark Election Night identity; app is dark-only; lint + build green.
 
-### Phase 18.3 — (Optional) Tailwind purity  `[UX]`  ⏸️ DEFERRED (by decision)
-**Decision:** deferred in favour of pushing the working, unified, all-green app first. 18.3 delivers no
-visual/functional change, only pays off once *every* file is converted + `index.css` removed, and is
-regression-prone (data pages can't be fully runtime-verified without the backend). Revisit only if the
-legacy `index.css` actually needs to go.
-- [ ] Convert app pages/components from legacy classes to Tailwind utilities; retire `index.css` + the `legacy` cascade layer.
-- **DoD:** `index.css` removed; lint + build + backend test suite still green. *(Not required for the demo — the app is already unified.)*
+### Phase 18.3 — Tailwind rebuild of the core app screens  `[UX]`  🟡 IN PROGRESS
+**Done (this pass):** rebuilt the six core screens + their shared components as native Tailwind
+utilities on the Election Night system (via `shape`). Expression split per the brief — **restrained**
+forms (Login, Register, Create), **broadcast** data screens (Vote, Results, Admin).
+- [x] Added app-screen component vocabulary to [tailwind.css](frontend/src/tailwind.css) (`@layer components`): `.board-panel`, `.board-label`, `.board-input`, `.board-btn`(+`--block`), `.board-btn-outline`, `.board-bar-track`/`.board-bar-fill(--lead|teal|grape)`, `.board-spin`; added `--color-danger` token.
+- [x] Login + Register — restrained centered dark auth forms.
+- [x] Create poll + `PollForm` — restrained; auth-gate + success states.
+- [x] `ShareLink` — dark row; QR kept on a white quiet-zone for scannability.
+- [x] Vote + `VoteForm` — broadcast question + per-type controls (choice rows, Yes/No, 1–5, open-text).
+- [x] `QandAPanel` — dark Q&A list/upvote/pin.
+- [x] Results + `LiveBarChart` — glowing bars, LIVE pulse, mono figures, comment feed.
+- [x] Admin — control-room rows (not cards), status/role pills, danger actions.
+- [x] Verified: `npm run lint` clean + `npm run build` green; new classes/tokens present in compiled CSS. **Runtime-verified against a full local stack** (LocalDB + all 4 services via `dotnet run`, seeded polls of every type + votes): Playwright screenshots desktop + mobile of Login/Register/Create-gate, Vote (choice/yes-no/rating/open-text), Results (glowing bars, rating histogram, comment feed, LIVE pulse, mono figures), and Admin (dense rows, status/role pills) — all on-brand, correct contrast, no mobile overflow.
+- [ ] **Remaining (later pass):** convert My Polls + Analytics, then retire `index.css` + the `legacy` cascade layer.
+- **DoD (full):** every app file on Tailwind utilities; `index.css` removed; lint + build + backend tests still green. *(Not required for the demo — the app is already unified and dark-only.)*
 
 ---
 

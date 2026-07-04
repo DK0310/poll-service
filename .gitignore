@@ -60,3 +60,4 @@ TestResults/
 *.coverage
 *.coveragexml
 BenchmarkDotNet.Artifacts/
+.claude/settings.json
