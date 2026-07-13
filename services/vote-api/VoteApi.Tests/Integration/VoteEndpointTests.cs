@@ -9,10 +9,15 @@ public class VoteEndpointTests : IClassFixture<CustomWebAppFactory>
     private readonly HttpClient _client;
     public VoteEndpointTests(CustomWebAppFactory factory) => _client = factory.CreateClient();
 
-    private static object Vote(int optionIndex, string voterToken) => new { optionIndex, voterToken };
+    // A single-question batch submission addressed to the fake poll's question.
+    private static object Vote(int optionIndex, string voterToken) => new
+    {
+        voterToken,
+        answers = new[] { new { questionId = FakePollClientService.QuestionId, optionIndex } }
+    };
 
     // Each test uses its own poll code so vote tallies stay isolated in the shared in-memory DB.
-    // (The fake Poll client treats any code except "nope1"/"closed" as an active 2-option poll.)
+    // (The fake Poll client treats any code except "nope1"/"closed" as an active poll with one 2-option question.)
 
     [Fact]
     public async Task Vote_Returns200_AndTallies()
@@ -21,8 +26,10 @@ public class VoteEndpointTests : IClassFixture<CustomWebAppFactory>
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(1, body.GetProperty("totalVotes").GetInt32());
-        Assert.Equal(100, body.GetProperty("options")[0].GetProperty("percentage").GetDouble());
+        Assert.Equal(1, body.GetProperty("totalVoters").GetInt32());
+        var question = body.GetProperty("questions")[0];
+        Assert.Equal(1, question.GetProperty("totalVotes").GetInt32());
+        Assert.Equal(100, question.GetProperty("options")[0].GetProperty("percentage").GetDouble());
     }
 
     [Fact]
@@ -58,7 +65,9 @@ public class VoteEndpointTests : IClassFixture<CustomWebAppFactory>
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(2, body.GetProperty("options").GetArrayLength());
+        var questions = body.GetProperty("questions");
+        Assert.Equal(1, questions.GetArrayLength());
+        Assert.Equal(2, questions[0].GetProperty("options").GetArrayLength());
     }
 
     [Fact]
@@ -73,8 +82,9 @@ public class VoteEndpointTests : IClassFixture<CustomWebAppFactory>
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(body.GetProperty("totalVotes").GetInt32() >= 1);
+        Assert.True(body.GetProperty("totalVoters").GetInt32() >= 1);
         Assert.True(body.GetProperty("timeline").GetArrayLength() >= 1);
+        Assert.Equal(1, body.GetProperty("questions").GetArrayLength());
     }
 
     [Fact]

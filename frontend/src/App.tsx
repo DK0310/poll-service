@@ -16,6 +16,8 @@ import { useAuthStatus } from './hooks/useAuthStatus';
 import { warmBackend } from './api/warmup';
 import { clearToken } from './auth/session';
 import { ToastProvider } from './components/Toast';
+import { ThemeProvider } from './hooks/useTheme';
+import { ThemeToggle } from './components/ThemeToggle';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   isActive ? 'nav-link nav-link--active' : 'nav-link';
@@ -39,6 +41,7 @@ function Nav() {
           <span className="brand__text h-gradient">PollBuilder</span>
         </Link>
         <nav className="app-nav" aria-label="Primary">
+          <ThemeToggle />
           <NavLink to="/create" className={navLinkClass}>
             Create
           </NavLink>
@@ -96,7 +99,7 @@ function BoardNav() {
     <header className="board sticky top-0 z-20 border-b border-line bg-bg/85 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3">
         <Link to="/" className="inline-flex items-center gap-2.5" aria-label="PollBuilder — home">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-tangerine text-bg shadow-glow-tangerine">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-tangerine text-on-accent shadow-glow-tangerine">
             <Vote size={20} strokeWidth={2.25} />
           </span>
           <span className="font-display text-xl font-extrabold tracking-tight text-fg">
@@ -104,6 +107,7 @@ function BoardNav() {
           </span>
         </Link>
         <nav className="flex items-center gap-1" aria-label="Primary">
+          <ThemeToggle />
           <NavLink to="/create" className={boardNavLink}>
             Create
           </NavLink>
@@ -134,7 +138,7 @@ function BoardNav() {
               </NavLink>
               <NavLink
                 to="/register"
-                className="inline-flex items-center rounded-full bg-tangerine px-4 py-2 font-display text-sm font-semibold text-bg transition-colors duration-150 hover:bg-amber"
+                className="inline-flex items-center rounded-full bg-tangerine px-4 py-2 font-display text-sm font-semibold text-on-accent transition-colors duration-150 hover:bg-amber"
               >
                 Register
               </NavLink>
@@ -190,7 +194,7 @@ function BoardFooter() {
         <div className="grid grid-cols-2 gap-8 md:grid-cols-[1.6fr_repeat(4,1fr)]">
           <div className="col-span-2 md:col-span-1">
             <Link to="/" className="inline-flex items-center gap-2.5">
-              <span className="grid h-9 w-9 place-items-center rounded-xl bg-tangerine text-bg shadow-glow-tangerine">
+              <span className="grid h-9 w-9 place-items-center rounded-xl bg-tangerine text-on-accent shadow-glow-tangerine">
                 <Vote size={20} strokeWidth={2.25} />
               </span>
               <span className="font-display text-xl font-extrabold tracking-tight text-fg">
@@ -311,9 +315,11 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <ToastProvider>
-        <Layout />
-      </ToastProvider>
+      <ThemeProvider>
+        <ToastProvider>
+          <Layout />
+        </ToastProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

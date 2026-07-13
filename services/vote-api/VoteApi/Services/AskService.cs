@@ -8,80 +8,81 @@ using VoteApi.Repositories;
 namespace VoteApi.Services;
 
 /// <summary>
-/// Anonymous Q&A for a poll: anyone may submit a question or upvote it; pinning highlights it.
-/// Every change broadcasts the refreshed list to the poll's SignalR group ("ReceiveQuestionsUpdate").
+/// Anonymous audience Q&A ("Ask") for a poll: anyone may submit a question or upvote it; pinning
+/// highlights it. Every change broadcasts the refreshed list to the poll's SignalR group
+/// ("ReceiveAskUpdate"). Distinct from survey questions, which are owned by the Poll API.
 /// </summary>
-public class QuestionService
+public class AskService
 {
-    private readonly QuestionRepository _repo;
+    private readonly AskRepository _repo;
     private readonly PollClientService _pollClient;
     private readonly IHubContext<PollHub> _hub;
 
-    public QuestionService(QuestionRepository repo, PollClientService pollClient, IHubContext<PollHub> hub)
+    public AskService(AskRepository repo, PollClientService pollClient, IHubContext<PollHub> hub)
     {
         _repo = repo;
         _pollClient = pollClient;
         _hub = hub;
     }
 
-    public async Task<Result<QuestionResponse>> SubmitAsync(string code, SubmitQuestionRequest request)
+    public async Task<Result<AskResponse>> SubmitAsync(string code, SubmitAskRequest request)
     {
         var poll = await _pollClient.GetPollAsync(code);
         if (poll is null)
-            return Result<QuestionResponse>.Failure("Poll not found");
+            return Result<AskResponse>.Failure("Poll not found");
         if (string.IsNullOrWhiteSpace(request.Text))
-            return Result<QuestionResponse>.Failure("Question text is required");
+            return Result<AskResponse>.Failure("Question text is required");
 
-        var question = new Question { PollCode = code, Text = request.Text.Trim() };
+        var question = new AudienceQuestion { PollCode = code, Text = request.Text.Trim() };
         await _repo.AddAsync(question);
         await BroadcastAsync(code);
-        return Result<QuestionResponse>.Success(QuestionResponse.From(question));
+        return Result<AskResponse>.Success(AskResponse.From(question));
     }
 
-    public async Task<Result<List<QuestionResponse>>> GetForPollAsync(string code)
+    public async Task<Result<List<AskResponse>>> GetForPollAsync(string code)
     {
         var poll = await _pollClient.GetPollAsync(code);
         if (poll is null)
-            return Result<List<QuestionResponse>>.Failure("Poll not found");
+            return Result<List<AskResponse>>.Failure("Poll not found");
 
         var questions = await _repo.GetByPollAsync(code);
-        return Result<List<QuestionResponse>>.Success(questions.Select(QuestionResponse.From).ToList());
+        return Result<List<AskResponse>>.Success(questions.Select(AskResponse.From).ToList());
     }
 
     // One upvote per voter key (logged-in user id or browser token) per question.
-    public async Task<Result<QuestionResponse>> UpvoteAsync(string code, Guid id, string voterKey)
+    public async Task<Result<AskResponse>> UpvoteAsync(string code, Guid id, string voterKey)
     {
         if (string.IsNullOrWhiteSpace(voterKey))
-            return Result<QuestionResponse>.Failure("A voter token is required");
+            return Result<AskResponse>.Failure("A voter token is required");
 
         var question = await _repo.GetByIdAsync(id);
         if (question is null || question.PollCode != code)
-            return Result<QuestionResponse>.Failure("Question not found");
+            return Result<AskResponse>.Failure("Question not found");
 
         if (await _repo.HasUpvotedAsync(id, voterKey))
-            return Result<QuestionResponse>.Failure("You have already upvoted this question");
+            return Result<AskResponse>.Failure("You have already upvoted this question");
 
         await _repo.AddUpvoteAsync(id, voterKey);
         question.Upvotes++;
         await _repo.UpdateAsync(question);
         await BroadcastAsync(code);
-        return Result<QuestionResponse>.Success(QuestionResponse.From(question));
+        return Result<AskResponse>.Success(AskResponse.From(question));
     }
 
     // Pin/unpin: poll owner or admin only.
-    public async Task<Result<QuestionResponse>> TogglePinAsync(string code, Guid id, Guid? userId, bool isAdmin)
+    public async Task<Result<AskResponse>> TogglePinAsync(string code, Guid id, Guid? userId, bool isAdmin)
     {
         var question = await _repo.GetByIdAsync(id);
         if (question is null || question.PollCode != code)
-            return Result<QuestionResponse>.Failure("Question not found");
+            return Result<AskResponse>.Failure("Question not found");
 
         var gate = await EnsureOwnerOrAdminAsync(code, userId, isAdmin);
-        if (!gate.IsSuccess) return Result<QuestionResponse>.Failure(gate.Error!);
+        if (!gate.IsSuccess) return Result<AskResponse>.Failure(gate.Error!);
 
         question.IsPinned = !question.IsPinned;
         await _repo.UpdateAsync(question);
         await BroadcastAsync(code);
-        return Result<QuestionResponse>.Success(QuestionResponse.From(question));
+        return Result<AskResponse>.Success(AskResponse.From(question));
     }
 
     // Delete a question: poll owner or admin only.
@@ -112,7 +113,7 @@ public class QuestionService
 
     private async Task BroadcastAsync(string code)
     {
-        var list = (await _repo.GetByPollAsync(code)).Select(QuestionResponse.From).ToList();
-        await _hub.Clients.Group(code).SendAsync("ReceiveQuestionsUpdate", list);
+        var list = (await _repo.GetByPollAsync(code)).Select(AskResponse.From).ToList();
+        await _hub.Clients.Group(code).SendAsync("ReceiveAskUpdate", list);
     }
 }

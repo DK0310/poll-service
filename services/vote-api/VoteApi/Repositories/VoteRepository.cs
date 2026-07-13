@@ -14,48 +14,64 @@ public class VoteRepository
     private readonly VoteDbContext _db;
     public VoteRepository(VoteDbContext db) => _db = db;
 
-    public virtual async Task AddAsync(Vote vote)
+    public virtual async Task AddRangeAsync(IEnumerable<Vote> votes)
     {
-        _db.Votes.Add(vote);
+        _db.Votes.AddRange(votes);
         await _db.SaveChangesAsync();
     }
 
+    /// <summary>True once the voter has submitted any answer for the poll (one submission per voter per poll).</summary>
     public virtual Task<bool> HasVotedAsync(string pollCode, string voterToken)
         => _db.Votes.AnyAsync(v => v.PollCode == pollCode && v.VoterToken == voterToken);
 
-    /// <summary>Aggregates vote counts per option in SQL (GROUP BY), not in memory.</summary>
+    /// <summary>Distinct voters who submitted the survey.</summary>
+    public virtual Task<int> GetVoterCountAsync(string pollCode)
+        => _db.Votes.Where(v => v.PollCode == pollCode).Select(v => v.VoterToken).Distinct().CountAsync();
+
+    /// <summary>Aggregates vote counts per (question, option) in SQL (GROUP BY), not in memory.</summary>
     public virtual async Task<List<VoteCount>> GetVoteCountsAsync(string pollCode)
         => await _db.Votes
             .Where(v => v.PollCode == pollCode)
-            .GroupBy(v => v.OptionIndex)
-            .Select(g => new VoteCount { OptionIndex = g.Key, Count = g.Count() })
+            .GroupBy(v => new { v.QuestionId, v.OptionIndex })
+            .Select(g => new VoteCount { QuestionId = g.Key.QuestionId, OptionIndex = g.Key.OptionIndex, Count = g.Count() })
             .ToListAsync();
 
-    /// <summary>Ordered vote timestamps for analytics (votes-over-time / peak minute). Uses the VotedAt index.</summary>
-    public virtual async Task<List<DateTime>> GetVoteTimestampsAsync(string pollCode)
+    /// <summary>Each voter's submission time (their earliest vote), for the submissions-over-time chart.</summary>
+    public virtual async Task<List<DateTime>> GetSubmissionTimestampsAsync(string pollCode)
         => await _db.Votes
             .Where(v => v.PollCode == pollCode)
-            .OrderBy(v => v.VotedAt)
-            .Select(v => v.VotedAt)
+            .GroupBy(v => v.VoterToken)
+            .Select(g => g.Min(v => v.VotedAt))
             .ToListAsync();
 
-    /// <summary>Free-text answers for an OpenText poll, oldest first (with author info for the comment feed).</summary>
-    public virtual async Task<List<TextAnswerResponse>> GetTextAnswersAsync(string pollCode)
+    /// <summary>Free-text answers (with author info + owning question) for the poll, oldest first.</summary>
+    public virtual async Task<List<QuestionTextAnswer>> GetTextAnswersAsync(string pollCode)
         => await _db.Votes
             .Where(v => v.PollCode == pollCode && v.TextAnswer != null)
             .OrderBy(v => v.VotedAt)
-            .Select(v => new TextAnswerResponse
+            .Select(v => new QuestionTextAnswer
             {
-                Text = v.TextAnswer!,
-                AuthorName = v.AuthorName,
-                AuthorRole = v.AuthorRole,
-                VotedAt = v.VotedAt
+                QuestionId = v.QuestionId,
+                Answer = new TextAnswerResponse
+                {
+                    Text = v.TextAnswer!,
+                    AuthorName = v.AuthorName,
+                    AuthorRole = v.AuthorRole,
+                    VotedAt = v.VotedAt
+                }
             })
             .ToListAsync();
 }
 
 public class VoteCount
 {
+    public Guid QuestionId { get; set; }
     public int OptionIndex { get; set; }
     public int Count { get; set; }
+}
+
+public class QuestionTextAnswer
+{
+    public Guid QuestionId { get; set; }
+    public TextAnswerResponse Answer { get; set; } = new();
 }

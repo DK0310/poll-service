@@ -55,7 +55,7 @@ export function ShareLink({ code }: ShareLinkProps) {
         // QR stays on a white quiet-zone for reliable scanning, even in the dark theme.
         <div className="mx-auto flex flex-col items-center gap-2 rounded-xl border border-line bg-white p-4">
           <QRCodeSVG value={url} size={180} className="block h-auto" aria-label="QR code for this poll" />
-          <p className="text-sm text-[#6f6880]">Scan to open this poll</p>
+          <p className="text-sm text-fg-faint">Scan to open this poll</p>
         </div>
       )}
     </div>

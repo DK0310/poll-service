@@ -15,8 +15,8 @@ builder.Services.AddDbContext<VoteDbContext>(opt =>
 
 builder.Services.AddScoped<VoteRepository>();
 builder.Services.AddScoped<VoteService>();
-builder.Services.AddScoped<QuestionRepository>();
-builder.Services.AddScoped<QuestionService>();
+builder.Services.AddScoped<AskRepository>();
+builder.Services.AddScoped<AskService>();
 builder.Services.AddSignalR();
 
 // CORS for SignalR — credentials must be allowed for the WebSocket.

@@ -33,10 +33,18 @@ public class PollClientService
 public record PollInfo
 {
     public string Code { get; init; } = "";
-    public string Question { get; init; } = "";
-    public string Type { get; init; } = "SingleChoice";
+    public string? Title { get; init; }
     public bool IsActive { get; init; }
     public Guid? CreatorId { get; init; }   // owner — for analytics/pin ownership checks
+    public List<PollQuestionInfo> Questions { get; init; } = new();
+}
+
+public record PollQuestionInfo
+{
+    public Guid Id { get; init; }
+    public int QuestionIndex { get; init; }
+    public string Text { get; init; } = "";
+    public string Type { get; init; } = "SingleChoice";
     public List<PollOptionInfo> Options { get; init; } = new();
 }
 

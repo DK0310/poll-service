@@ -20,7 +20,7 @@ export function RegisterPage() {
       <div className="board-panel p-7 sm:p-8">
         <div className="mb-7 flex flex-col items-center text-center">
           <span
-            className="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-tangerine text-bg shadow-glow-tangerine"
+            className="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-tangerine text-on-accent shadow-glow-tangerine"
             aria-hidden="true"
           >
             <UserPlus size={24} strokeWidth={2.25} />

@@ -1,10 +1,48 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0b0913" />
+    <meta name="theme-color" content="#f4f2fb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0913" media="(prefers-color-scheme: dark)" />
+    <!-- Apply the saved theme before paint so there's no flash. Default: light.
+         Dark is the CSS default (Tailwind @theme); light overrides the tokens as
+         inline custom properties (Tailwind can't theme them from CSS). Keep this
+         map in sync with src/hooks/themeTokens.ts (LIGHT_TOKENS). -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('theme');
+          if (t !== 'dark' && t !== 'light') t = 'light';
+          var root = document.documentElement;
+          root.setAttribute('data-theme', t);
+          root.style.colorScheme = t;
+          if (t === 'light') {
+            var L = {
+              '--color-bg': '#f4f2fb',
+              '--color-panel': '#ffffff',
+              '--color-panel-2': '#ece8f6',
+              '--color-line': 'rgba(24, 17, 43, 0.12)',
+              '--color-line-strong': 'rgba(24, 17, 43, 0.22)',
+              '--color-fg': '#17131f',
+              '--color-fg-muted': '#574f68',
+              '--color-fg-faint': '#7c7490',
+              '--color-tangerine': '#e4531c',
+              '--color-grape': '#6b4ce0',
+              '--color-teal': '#0f9c8f',
+              '--color-amber': '#b26a00',
+              '--color-danger': '#d22d2d',
+              '--shadow-board': '0 1px 2px rgba(24, 17, 43, 0.05), 0 18px 40px -24px rgba(24, 17, 43, 0.22)',
+              '--shadow-glow-tangerine': '0 8px 22px -10px rgba(228, 83, 28, 0.45)',
+              '--shadow-glow-grape': '0 8px 22px -10px rgba(107, 76, 224, 0.4)',
+              '--shadow-glow-teal': '0 8px 22px -10px rgba(15, 156, 143, 0.4)'
+            };
+            for (var k in L) root.style.setProperty(k, L[k]);
+          }
+        } catch (e) {}
+      })();
+    </script>
     <meta
       name="description"
       content="PollBuilder — create a poll, share a link, and watch results update live."

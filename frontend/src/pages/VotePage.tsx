@@ -2,10 +2,11 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Lock, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
 import { usePollInfo } from '../hooks/usePollInfo';
 import { useVote } from '../hooks/useVote';
-import { VoteForm } from '../components/VoteForm';
-import { QandAPanel } from '../components/QandAPanel';
+import { SurveyForm } from '../components/SurveyForm';
+import { AskPanel } from '../components/AskPanel';
 import { ShareLink } from '../components/ShareLink';
 import { getUserId, isAdmin } from '../auth/session';
+import type { QuestionAnswer } from '../types/poll.types';
 
 export function VotePage() {
   const { code = '' } = useParams<{ code: string }>();
@@ -37,8 +38,8 @@ export function VotePage() {
     );
   }
 
-  const handleVote = async (optionIndex: number, textAnswer?: string) => {
-    const result = await vote(optionIndex, textAnswer);
+  const handleVote = async (answers: QuestionAnswer[]) => {
+    const result = await vote(answers);
     if (result) navigate(`/poll/${code}/results`);
   };
 
@@ -55,7 +56,7 @@ export function VotePage() {
 
       <div className="board-panel board-grid p-7 sm:p-9">
         <h1 className="font-display text-2xl font-bold leading-tight tracking-tight text-fg text-balance sm:text-3xl">
-          {poll.question}
+          {poll.title ?? 'Cast your vote'}
         </h1>
 
         {!poll.isActive && (
@@ -83,10 +84,9 @@ export function VotePage() {
           </div>
         ) : (
           <>
-            <VoteForm
-              type={poll.type}
-              options={poll.options}
-              onVote={handleVote}
+            <SurveyForm
+              questions={poll.questions}
+              onSubmit={handleVote}
               disabled={voteLoading || !poll.isActive}
               submitting={voteLoading}
             />
@@ -104,7 +104,7 @@ export function VotePage() {
         </div>
       </div>
 
-      <QandAPanel code={code} canModerate={canModerate} />
+      <AskPanel code={code} canModerate={canModerate} />
     </div>
   );
 }

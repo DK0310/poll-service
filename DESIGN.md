@@ -12,7 +12,8 @@
 > component vocabulary (see "App-screen components" below). Expression is split by surface (product
 > register): **restrained** forms (Login/Register/Create), **broadcast** data screens
 > (Vote/Results/Admin). My Polls + Analytics remain on the re-paletted `index.css` until a later pass
-> retires it. The whole app is visually unified and dark-only.
+> retires it. The whole app is visually unified. **Phase 18.4** added a **light "daytime broadcast"
+> theme + a sun/moon toggle (default light)** — see "Light / dark theme" below.
 
 ## App-screen components (Phase 18.3)
 
@@ -22,7 +23,34 @@ Reusable controls in `tailwind.css` (`@layer components`, above the `legacy` lay
 `.board-btn-outline` (ghost), `.board-bar-track` / `.board-bar-fill--lead|teal|grape` (the result-bar
 motif with accent glows), `.board-spin`. New token: `--color-danger` for destructive actions/errors.
 
-## Theme
+## Light / dark theme (Phase 18.4)
+
+The app ships **light and dark**, toggled by a sun/moon control in both headers
+([`ThemeToggle`](frontend/src/components/ThemeToggle.tsx)); the choice persists in `localStorage`
+and applies to `<html data-theme>`. **Default is light** ("daytime broadcast") — the dark
+"Election Night" studio below is the alternate. An inline script in
+[`index.html`](frontend/index.html) sets the theme before paint (no flash).
+
+**Light = "Daytime broadcast":** same identity (tangerine / grape / teal, mono data, glowing bars)
+on a bright plum-tinted ground (`#f4f2fb`), white boards, near-black plum ink (`#17131f`). Accents
+are deepened to clear WCAG AA on light (tangerine `#e4531c`, teal `#0f9c8f`, grape `#6b4ce0`, amber
+`#b26a00`); the accent halos become soft downward shadows instead of full glows. This is a deliberate
+*bright* counterpart — **not** the rejected generic-white "Rally"/Mentimeter look (see PRODUCT.md
+anti-references): the broadcast motifs, mono data, and committed palette all stay.
+
+**How the two styling systems are themed:**
+- **Legacy `index.css`** (My Polls, Analytics, shared chrome) is fully token-driven; light lives in
+  `:root[data-theme='light']`, dark in `:root[data-theme='dark']` — pure CSS, flips automatically.
+- **Tailwind `@theme` tokens** (`--color-*`, used by every `bg-*/text-*/.board-*`) **cannot** be
+  themed from CSS: Tailwind v4 flattens `@theme` `var()` at build time and strips any CSS
+  redeclaration of a theme key. So the dark values stay in `@theme`, and the **light** values are
+  applied as **inline custom properties on `<html>` via JS** ([`hooks/themeTokens.ts`](frontend/src/hooks/themeTokens.ts),
+  driven by [`hooks/useTheme.tsx`](frontend/src/hooks/useTheme.tsx)); inline styles win the cascade.
+  Toggling to dark just clears them. The same map is inlined in `index.html` for the pre-paint set.
+- On-accent ink uses a fixed `--color-on-accent` (dark in both themes) via a `text-on-accent` utility,
+  replacing the old `text-bg` idiom (which only read correctly when the page bg was dark).
+
+## Theme (dark identity)
 
 The app looks and feels like a **live broadcast results board / control room** — dark, dramatic,
 data-forward, real-time. Color strategy is **drenched dark**: a near-black plum-blue "studio" base

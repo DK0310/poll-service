@@ -24,7 +24,7 @@ export function AdminDashboardPage() {
     <div className="board mx-auto w-full max-w-3xl">
       <div className="mb-6 flex items-center gap-3">
         <span
-          className="grid h-10 w-10 place-items-center rounded-xl bg-tangerine text-bg shadow-glow-tangerine"
+          className="grid h-10 w-10 place-items-center rounded-xl bg-tangerine text-on-accent shadow-glow-tangerine"
           aria-hidden="true"
         >
           <ShieldCheck size={22} strokeWidth={2.25} />
@@ -52,7 +52,7 @@ export function AdminDashboardPage() {
                     to={`/poll/${p.code}/results`}
                     className="truncate font-display font-semibold text-fg hover:text-tangerine"
                   >
-                    {p.question}
+                    {p.title ?? p.questions[0]?.text ?? 'Untitled survey'}
                   </Link>
                   <span className="font-mono text-xs text-fg-muted">/poll/{p.code}</span>
                 </div>

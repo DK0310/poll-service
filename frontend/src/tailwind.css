@@ -26,7 +26,12 @@
   --font-body: 'Hanken Grotesk Variable', system-ui, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
 
-  /* ── Color (dark, drenched — the "studio") ─────────────── */
+  /* ── Color (dark, drenched — the "studio") ─────────────────
+     These are the DARK identity. The light "daytime" theme overrides
+     these same --color-* tokens as inline custom properties on <html>
+     (see hooks/themeTokens.ts) — Tailwind flattens @theme var() at
+     build time and strips CSS redeclarations of theme keys, so a JS
+     inline override is the reliable path. Inline styles win the cascade. */
   --color-bg: #0b0913; /* near-black plum-blue base */
   --color-panel: #15121f; /* boards / cards */
   --color-panel-2: #1e1a2b; /* rows, elevated bits */
@@ -42,11 +47,12 @@
   --color-teal: #2dd4c4; /* accent 3 */
   --color-amber: #ffc44d; /* "live now" / winner */
   --color-danger: #ff7a7a; /* destructive actions / errors */
+  --color-on-accent: #1c0f06; /* ink ON a bright accent (button/badge/chip) — dark in BOTH themes */
 
   /* ── Radii ─────────────────────────────────────────────── */
   --radius-board: 1.25rem;
 
-  /* ── Elevation + glow ──────────────────────────────────── */
+  /* ── Elevation + glow (dark identity; light overrides via inline props) ── */
   --shadow-board: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 30px 60px -28px rgba(0, 0, 0, 0.8);
   --shadow-glow-tangerine: 0 0 28px -4px rgba(255, 107, 61, 0.55);
   --shadow-glow-grape: 0 0 28px -4px rgba(139, 107, 255, 0.5);
@@ -55,6 +61,7 @@
   /* ── Motion ────────────────────────────────────────────── */
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
 }
+
 
 @layer components {
   /* Landing root — dark studio. Scoped so legacy app pages stay put. */
@@ -188,7 +195,7 @@
     border: 0;
     border-radius: 0.625rem;
     background: var(--color-tangerine);
-    color: var(--color-bg);
+    color: var(--color-on-accent);
     font-family: var(--font-display);
     font-weight: 600;
     font-size: 0.9375rem;
@@ -294,5 +301,28 @@
   .board-ticker,
   .board-reveal {
     animation: none;
+  }
+}
+
+/* ============================================================
+   Light theme — "Daytime broadcast"
+   Same Election Night identity (tangerine / grape / teal, mono
+   data, glowing bars) rendered on a bright studio: light plum-
+   tinted ground, white boards, near-black plum ink. Accents are
+   deepened just enough to hold AA contrast on light; the accent
+   halos become soft downward shadows instead of full glows.
+   These re-declare the @theme custom properties, so every
+   bg-*/text-*/border-* utility and .board-* component follows.
+   Unlayered on purpose: variable *definitions* only, so they win
+   the value without disturbing utility specificity.
+   ============================================================ */
+@layer components {
+  /* The broadcast grid texture is drawn in white — invisible on the light
+     ground. Redraw it in dark ink so the texture still reads in daylight mode.
+     (A real style rule, unlike the token overrides, so Tailwind keeps it.) */
+  :root[data-theme='light'] .board-grid {
+    background-image:
+      linear-gradient(rgba(24, 17, 43, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(24, 17, 43, 0.05) 1px, transparent 1px);
   }
 }

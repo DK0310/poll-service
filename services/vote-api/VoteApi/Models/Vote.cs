@@ -6,6 +6,10 @@ public class Vote
 
     /// <summary>Which poll this vote belongs to. NOT a FK — the Polls table lives in PollDb.</summary>
     public string PollCode { get; set; } = "";
+
+    /// <summary>Which survey question this answer is for. NOT a FK — Questions live in PollDb;
+    /// the id is learned from the Poll API and trusted after validation.</summary>
+    public Guid QuestionId { get; set; }
     public int OptionIndex { get; set; }
 
     /// <summary>Free-text answer for OpenText polls (null for choice/rating polls — stored, not tallied).</summary>

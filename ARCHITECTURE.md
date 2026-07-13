@@ -8,7 +8,9 @@
 
 ## System Overview
 
-Poll & Survey Builder is a **microservices-based** real-time polling platform built for the AMD201 Advanced Microservices Deployment coursework. A creator writes a question — **multiple-choice (2–6 options), yes/no, 1–5 rating, or open text** — shares a short link (e.g. `/poll/7fGh2`), and collects votes. The results page shows a **live bar chart** that updates in real time via SignalR WebSockets — no page refresh.
+Poll & Survey Builder is a **microservices-based** real-time polling platform built for the AMD201 Advanced Microservices Deployment coursework. A creator builds a **survey** — a poll with **one or more questions**, each **multiple-choice (2–6 options), yes/no, 1–5 rating, or open text** — shares a short link (e.g. `/poll/7fGh2`), and collects votes. A voter answers **every question and submits once**. The results page shows a **live bar chart per question** that updates in real time via SignalR WebSockets — no page refresh.
+
+**Data model:** a **Poll** has many **Questions**; each **Question** has many **Options**. A single-question poll is just a survey with one question.
 
 **Architecture style:** Microservices behind an API Gateway. Each service owns its domain, its database, and its deployment lifecycle, and is independently deployable. Services talk to each other with synchronous HTTP only when necessary.
 
@@ -45,16 +47,18 @@ Poll & Survey Builder is a **microservices-based** real-time polling platform bu
     │   IdentityDb     │      │      │      │                │
     │   (Users)        │      │      │      │   ┌────────────▼────────────┐
     └──────────────────┘      │      │      │   │   VoteDb                │
-                              │      │      │   │   (Votes, Questions)    │
+                              │      │      │   │   (Votes,               │
+                              │      │      │   │    AudienceQuestions)   │
                      ┌────────▼──────▼──────▼┐  └─────────────────────────┘
                      │   Poll API            │
                      │   /api/polls/*        │        ─── HTTP (sync) ───▶
                      │   Port 5001           │◀──── Vote API calls Poll API
                      └────────┬──────────────┘       to validate polls
-                     ┌────────▼──────────────┐
-                     │   PollDb              │
-                     │   (Polls, PollOptions)│
-                     └───────────────────────┘
+                     ┌────────▼───────────────────┐
+                     │   PollDb                   │
+                     │   (Polls, Questions,       │
+                     │    PollOptions)            │
+                     └────────────────────────────┘
 ```
 
 ---
@@ -107,9 +111,9 @@ The Gateway is the **single entry point** for all external traffic. It:
 | Property | Value |
 |---|---|
 | Port | 5001 (external), 8080 (container) |
-| Responsibility | Poll CRUD — create (login required), read, close/delete (owner or admin), list; admin list of all polls |
-| Database | `PollDb` — Polls, PollOptions tables |
-| Owns | Polls, PollOptions |
+| Responsibility | Survey CRUD — create a poll with **many questions, each owning its options** (login required), read (nested questions+options), close/delete (owner or admin), list; admin list of all polls |
+| Database | `PollDb` — Polls, Questions, PollOptions tables |
+| Owns | Polls, Questions, PollOptions |
 | Consumes | Nothing — self-contained |
 
 ### 3. Vote API
@@ -117,11 +121,11 @@ The Gateway is the **single entry point** for all external traffic. It:
 | Property | Value |
 |---|---|
 | Port | 5002 (external), 8080 (container) |
-| Responsibility | Vote submission, results aggregation, **real-time broadcasting**, creator analytics (owner/admin), anonymous Q&A (ask/upvote open; pin/delete owner/admin) |
-| Database | `VoteDb` — Votes, Questions, QuestionUpvotes tables |
-| Owns | Votes, Questions, QuestionUpvotes |
-| Consumes | Calls Poll API over HTTP to validate a poll exists and is active before accepting a vote |
-| Special | **SignalR Hub** at `/hubs/poll` for live vote updates (`ReceiveVoteUpdate`) and live Q&A (`ReceiveQuestionsUpdate`) |
+| Responsibility | **Batch** vote submission (one answer per question, submitted once), **per-question** results aggregation, **real-time broadcasting**, creator analytics (owner/admin), anonymous audience **Ask** / Q&A (ask/upvote open; pin/delete owner/admin) |
+| Database | `VoteDb` — Votes, AudienceQuestions, AudienceQuestionUpvotes tables |
+| Owns | Votes, AudienceQuestions, AudienceQuestionUpvotes |
+| Consumes | Calls Poll API over HTTP to validate a poll (its questions + options) before accepting a vote |
+| Special | **SignalR Hub** at `/hubs/poll` for live vote updates (`ReceiveVoteUpdate`, per-question snapshot) and live audience Ask (`ReceiveAskUpdate`) |
 
 ### 4. Identity API
 
@@ -171,8 +175,9 @@ poll-service/
 │   │   │   │   ├── CreatePollRequest.cs
 │   │   │   │   └── PollResponse.cs
 │   │   │   ├── Models/
-│   │   │   │   ├── Poll.cs
-│   │   │   │   └── PollOption.cs
+│   │   │   │   ├── Poll.cs                  ← Poll (survey): Title + Questions
+│   │   │   │   ├── Question.cs              ← Survey question (Type + Options); PollQuestionType enum
+│   │   │   │   └── PollOption.cs            ← Option (belongs to a Question)
 │   │   │   ├── Data/
 │   │   │   │   ├── PollDbContext.cs
 │   │   │   │   └── Migrations/
@@ -190,26 +195,26 @@ poll-service/
 │   ├── vote-api/                          ← Voting + real-time microservice
 │   │   ├── VoteApi/                       ← ASP.NET Core + SignalR
 │   │   │   ├── Controllers/
-│   │   │   │   ├── VotesController.cs      ← Vote submission + results + analytics
-│   │   │   │   └── QuestionsController.cs  ← Anonymous Q&A (list/ask/upvote/pin/delete)
+│   │   │   │   ├── VotesController.cs      ← Batch vote submission + results + analytics
+│   │   │   │   └── AskController.cs        ← Anonymous audience Ask/Q&A (list/ask/upvote/pin/delete)
 │   │   │   ├── Hubs/
-│   │   │   │   └── PollHub.cs              ← SignalR hub for live results + Q&A
+│   │   │   │   └── PollHub.cs              ← SignalR hub for live results + Ask
 │   │   │   ├── Services/
-│   │   │   │   ├── VoteService.cs          ← Vote logic + analytics + broadcast
-│   │   │   │   ├── QuestionService.cs      ← Q&A logic + broadcast
-│   │   │   │   └── PollClientService.cs    ← HTTP client to Poll API
+│   │   │   │   ├── VoteService.cs          ← Batch vote logic + per-question results/analytics + broadcast
+│   │   │   │   ├── AskService.cs           ← Audience Ask logic + broadcast
+│   │   │   │   └── PollClientService.cs    ← HTTP client to Poll API (nested questions)
 │   │   │   ├── Repositories/
 │   │   │   │   ├── VoteRepository.cs
-│   │   │   │   └── QuestionRepository.cs
+│   │   │   │   └── AskRepository.cs
 │   │   │   ├── DTOs/
-│   │   │   │   ├── VoteRequest.cs
-│   │   │   │   ├── VoteResultsResponse.cs
-│   │   │   │   ├── AnalyticsResponse.cs    ← Votes-over-time, peak, top option
-│   │   │   │   └── QuestionDtos.cs         ← SubmitQuestionRequest, QuestionResponse
+│   │   │   │   ├── VoteRequest.cs          ← Batch: VoterToken + Answers[{QuestionId,OptionIndex,TextAnswer}]
+│   │   │   │   ├── VoteResultsResponse.cs  ← Per-question results (TotalVoters + Questions[])
+│   │   │   │   ├── AnalyticsResponse.cs    ← Submission timeline, peak, per-question top option
+│   │   │   │   └── AskDtos.cs              ← SubmitAskRequest, AskResponse
 │   │   │   ├── Models/
-│   │   │   │   ├── Vote.cs
-│   │   │   │   ├── Question.cs
-│   │   │   │   └── QuestionUpvote.cs        ← Upvote dedup (unique QuestionId+VoterKey)
+│   │   │   │   ├── Vote.cs                 ← Vote (has QuestionId)
+│   │   │   │   ├── AudienceQuestion.cs
+│   │   │   │   └── AudienceQuestionUpvote.cs ← Upvote dedup (unique AudienceQuestionId+VoterKey)
 │   │   │   ├── Data/
 │   │   │   │   ├── VoteDbContext.cs
 │   │   │   │   └── Migrations/
@@ -218,9 +223,9 @@ poll-service/
 │   │   │   └── Program.cs
 │   │   ├── VoteApi.Tests/
 │   │   │   ├── Services/VoteServiceTests.cs
-│   │   │   ├── Services/QuestionServiceTests.cs
+│   │   │   ├── Services/AskServiceTests.cs
 │   │   │   ├── Integration/VoteEndpointTests.cs
-│   │   │   ├── Integration/QuestionEndpointTests.cs
+│   │   │   ├── Integration/AskEndpointTests.cs
 │   │   │   ├── Integration/CustomWebAppFactory.cs
 │   │   │   └── VoteApi.Tests.csproj
 │   │   ├── Dockerfile
@@ -278,20 +283,21 @@ poll-service/
 │   │   ├── hooks/
 │   │   │   ├── useCreatePoll.ts            ← Poll creation
 │   │   │   ├── usePollInfo.ts              ← Fetch poll by code
-│   │   │   ├── useVote.ts                  ← Submit vote (option or text)
-│   │   │   ├── useLiveResults.ts           ← SignalR + initial results
+│   │   │   ├── useVote.ts                  ← Submit batch of answers (one per question)
+│   │   │   ├── useLiveResults.ts           ← SignalR + initial results (per-question snapshot)
 │   │   │   ├── useAnalytics.ts             ← Fetch creator analytics
-│   │   │   ├── useQuestions.ts             ← Q&A SignalR + submit/upvote/pin
+│   │   │   ├── useAsk.ts                   ← Audience Ask SignalR + submit/upvote/pin
 │   │   │   ├── useMyPolls.ts               ← Fetch creator's polls
 │   │   │   ├── useAuth.ts                  ← Login/register actions
 │   │   │   ├── useAuthStatus.ts            ← Reactive auth/role state (auth-change event)
 │   │   │   └── useAdmin.ts                 ← Admin dashboard data + actions
 │   │   ├── components/
-│   │   │   ├── PollForm.tsx                ← Create poll form (question + type + options)
-│   │   │   ├── VoteForm.tsx                ← Vote interface (radios/rating/text by type)
-│   │   │   ├── LiveBarChart.tsx            ← Animated results bar chart
-│   │   │   ├── LineChart.tsx               ← SVG votes-over-time chart (analytics)
-│   │   │   ├── QandAPanel.tsx              ← Anonymous Q&A panel (pin gated by canModerate)
+│   │   │   ├── PollForm.tsx                ← Multi-question survey builder (title + N questions, each type + options)
+│   │   │   ├── SurveyForm.tsx              ← Renders all questions, collects answers, submits the batch once
+│   │   │   ├── VoteForm.tsx                ← Controlled single-question input (radios/rating/text by type)
+│   │   │   ├── LiveBarChart.tsx            ← Animated results bar chart (one per question)
+│   │   │   ├── LineChart.tsx               ← SVG submissions-over-time chart (analytics)
+│   │   │   ├── AskPanel.tsx                ← Anonymous audience Ask/Q&A panel (pin gated by canModerate)
 │   │   │   ├── PollCard.tsx                ← Poll summary card
 │   │   │   ├── ShareLink.tsx               ← Copyable share link + "Show QR" toggle (qrcode.react)
 │   │   │   ├── Toast.tsx                   ← ToastProvider + useToast (no-dependency notifications)
@@ -351,109 +357,123 @@ Each service owns its data exclusively and has its own SQL Server database, DbCo
 
 | Service | Database | DbContext | Tables |
 |---|---|---|---|
-| Poll API | `PollDb` | `PollDbContext` | `Polls`, `PollOptions` |
-| Vote API | `VoteDb` | `VoteDbContext` | `Votes`, `Questions`, `QuestionUpvotes` |
+| Poll API | `PollDb` | `PollDbContext` | `Polls`, `Questions`, `PollOptions` |
+| Vote API | `VoteDb` | `VoteDbContext` | `Votes`, `AudienceQuestions`, `AudienceQuestionUpvotes` |
 | Identity API | `IdentityDb` | `IdentityDbContext` | `Users` |
 
 > In development, all three databases can live in the same SQL Server instance (same `db` container, different `Database=` values). In production they may be separate databases or separate instances. EF Core migrations create each database independently.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     SQL Server Instance                      │
-├─────────────────┬──────────────────┬────────────────────────┤
-│     PollDb      │     VoteDb       │     IdentityDb         │
-├─────────────────┼──────────────────┼────────────────────────┤
-│ Polls           │ Votes            │ Users                  │
-│ ├─ Id (PK)      │ ├─ Id (PK)       │ ├─ Id (PK)            │
-│ ├─ Code (UQ)    │ ├─ PollCode      │ ├─ Email (UQ)         │
-│ ├─ Question     │ ├─ OptionIndex   │ ├─ PasswordHash       │
-│ ├─ Type         │ ├─ TextAnswer?   │ ├─ Role               │
-│ ├─ Status       │ ├─ AuthorName?   │ └─ CreatedAt          │
-│ ├─ ExpiresAt    │ ├─ AuthorRole?   │                        │
-│ ├─ CreatorId    │ ├─ VoterToken    │                        │
-│ └─ CreatedAt    │ ├─ VotedAt       │                        │
-│                 │ └─ UQ(PollCode,  │                        │
-│                 │      VoterToken) │                        │
-│                 │                  │                        │
-│ PollOptions     │ Questions        │                        │
-│ ├─ Id (PK)      │ ├─ Id (PK)       │                        │
-│ ├─ PollId (FK)  │ ├─ PollCode (ix) │                        │
-│ ├─ OptionIndex  │ ├─ Text          │                        │
-│ └─ Text         │ ├─ Upvotes       │                        │
-│                 │ ├─ IsPinned      │                        │
-│                 │ └─ CreatedAt     │                        │
-│                 │                  │                        │
-│                 │ QuestionUpvotes  │                        │
-│                 │ ├─ Id (PK)       │                        │
-│                 │ ├─ QuestionId    │                        │
-│                 │ ├─ VoterKey      │                        │
-│                 │ ├─ CreatedAt     │                        │
-│                 │ └─ UQ(QuestionId,│                        │
-│                 │      VoterKey)   │                        │
-└─────────────────┴──────────────────┴────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│                        SQL Server Instance                          │
+├────────────────────┬──────────────────────┬────────────────────────┤
+│       PollDb       │        VoteDb        │     IdentityDb         │
+├────────────────────┼──────────────────────┼────────────────────────┤
+│ Polls              │ Votes                │ Users                  │
+│ ├─ Id (PK)         │ ├─ Id (PK)           │ ├─ Id (PK)            │
+│ ├─ Code (UQ)       │ ├─ PollCode          │ ├─ Email (UQ)         │
+│ ├─ Title?          │ ├─ QuestionId        │ ├─ PasswordHash       │
+│ ├─ Status          │ ├─ OptionIndex       │ ├─ Role               │
+│ ├─ ExpiresAt       │ ├─ TextAnswer?       │ └─ CreatedAt          │
+│ ├─ CreatorId       │ ├─ AuthorName?       │                        │
+│ └─ CreatedAt       │ ├─ AuthorRole?       │                        │
+│                    │ ├─ VoterToken        │                        │
+│ Questions          │ ├─ VotedAt           │                        │
+│ ├─ Id (PK)         │ └─ UQ(PollCode,      │                        │
+│ ├─ PollId (FK)     │      QuestionId,     │                        │
+│ ├─ QuestionIndex   │      VoterToken)     │                        │
+│ ├─ Text            │                      │                        │
+│ └─ Type            │ AudienceQuestions    │                        │
+│                    │ ├─ Id (PK)           │                        │
+│ PollOptions        │ ├─ PollCode (ix)     │                        │
+│ ├─ Id (PK)         │ ├─ Text              │                        │
+│ ├─ QuestionId (FK) │ ├─ Upvotes           │                        │
+│ ├─ OptionIndex     │ ├─ IsPinned          │                        │
+│ └─ Text            │ └─ CreatedAt         │                        │
+│                    │                      │                        │
+│                    │ AudienceQuestionUpvotes                       │
+│                    │ ├─ Id (PK)           │                        │
+│                    │ ├─ AudienceQuestionId│                        │
+│                    │ ├─ VoterKey          │                        │
+│                    │ ├─ CreatedAt         │                        │
+│                    │ └─ UQ(AudienceQuestionId, VoterKey)           │
+└────────────────────┴──────────────────────┴────────────────────────┘
 ```
+
+Relationships: **Poll 1─many Question 1─many PollOption** (FK + cascade delete within PollDb). `Vote.QuestionId` references a `Question.Id` across the DB boundary — **not** a FK.
 
 ### Entities
 
-**Poll** (`PollDb.Polls`)
+**Poll** (`PollDb.Polls`) — a survey
 
 | Property | Type | Notes |
 |---|---|---|
 | Id | Guid | PK, `NEWID()` default |
 | Code | string | 5-char shareable identifier, **unique + indexed** |
-| Question | string | The poll question |
-| Type | PollQuestionType enum | SingleChoice / YesNo / Rating / OpenText (string, max 20) |
+| Title | string? | Optional survey title (max 500); null = untitled |
 | Status | PollStatus enum | Open / Closed (stored as string, max 20) |
 | ExpiresAt | DateTime? | Optional expiration |
 | CreatorId | Guid? | From JWT — **NOT a FK** (no Users table here) |
 | CreatedAt | DateTime | UTC, `GETUTCDATE()` default |
-| Options | ICollection\<PollOption\> | Navigation (1-to-many, cascade delete) |
+| Questions | ICollection\<Question\> | Navigation (1-to-many, cascade delete) |
 
 Computed (not persisted): `IsExpired`, `IsClosed`, `IsActive`.
+
+**Question** (`PollDb.Questions`) — one survey question
+
+| Property | Type | Notes |
+|---|---|---|
+| Id | Guid | PK, `NEWID()` default |
+| PollId | Guid | FK → Polls (cascade delete) |
+| QuestionIndex | int | Display order within the poll, 0-based |
+| Text | string | The question text (max 500) |
+| Type | PollQuestionType enum | SingleChoice / YesNo / Rating / OpenText (string, max 20) |
+| Options | ICollection\<PollOption\> | Navigation (1-to-many, cascade delete) |
 
 **PollOption** (`PollDb.PollOptions`)
 
 | Property | Type | Notes |
 |---|---|---|
 | Id | Guid | PK, `NEWID()` default |
-| PollId | Guid | FK → Polls (cascade delete) |
+| QuestionId | Guid | FK → Questions (cascade delete) |
 | OptionIndex | int | Display order, 0-based |
 | Text | string | Option text |
 
-**Vote** (`VoteDb.Votes`)
+**Vote** (`VoteDb.Votes`) — one answer to one question
 
 | Property | Type | Notes |
 |---|---|---|
 | Id | Guid | PK, `NEWID()` default |
 | PollCode | string | Which poll — **NOT a FK** (different database) |
+| QuestionId | Guid | Which survey question — **NOT a FK** (Questions live in PollDb; id learned from the Poll API) |
 | OptionIndex | int | Which option was chosen (0 for OpenText) |
-| TextAnswer | string? | Free-text answer for OpenText polls (max 1000); null otherwise |
+| TextAnswer | string? | Free-text answer for OpenText questions (max 1000); null otherwise |
 | AuthorName | string? | OpenText answer author's display label — email local-part (max 64); **null = anonymous guest**. Display-only, client-supplied |
 | AuthorRole | string? | OpenText answer author's role (`User`/`Admin`, max 20); null for guests. Display-only |
 | VoterToken | string | Browser fingerprint / session cookie |
 | VotedAt | DateTime | UTC, `GETUTCDATE()` default |
 
-**Question** (`VoteDb.Questions`) — anonymous Q&A
+**AudienceQuestion** (`VoteDb.AudienceQuestions`) — anonymous audience Ask/Q&A
 
 | Property | Type | Notes |
 |---|---|---|
 | Id | Guid | PK, `NEWID()` default |
 | PollCode | string | Which poll — **NOT a FK** (different database), indexed |
 | Text | string | The question text (max 1000) |
-| Upvotes | int | Audience upvote count (distinct upvoters; see QuestionUpvote) |
+| Upvotes | int | Audience upvote count (distinct upvoters; see AudienceQuestionUpvote) |
 | IsPinned | bool | Highlighted/pinned by the host (owner/admin only) |
 | CreatedAt | DateTime | UTC, `GETUTCDATE()` default |
 
-**QuestionUpvote** (`VoteDb.QuestionUpvotes`) — one upvote per person per question
+**AudienceQuestionUpvote** (`VoteDb.AudienceQuestionUpvotes`) — one upvote per person per audience question
 
 | Property | Type | Notes |
 |---|---|---|
 | Id | Guid | PK, `NEWID()` default |
-| QuestionId | Guid | Which question — **NOT a FK navigation** (kept flat) |
+| AudienceQuestionId | Guid | Which audience question — **NOT a FK navigation** (kept flat) |
 | VoterKey | string | `X-User-Id` for logged-in users, else the browser voter token (max 128) |
 | CreatedAt | DateTime | UTC, `GETUTCDATE()` default |
 
-A **unique index on `(QuestionId, VoterKey)`** enforces one upvote per person per question; a repeat upvote returns **409** and does not double-count.
+A **unique index on `(AudienceQuestionId, VoterKey)`** enforces one upvote per person per audience question; a repeat upvote returns **409** and does not double-count.
 
 **User** (`IdentityDb.Users`)
 
@@ -472,19 +492,20 @@ A **unique index on `(QuestionId, VoterKey)`** enforces one upvote per person pe
 | PollDb | `Polls.Code` (UNIQUE) | Primary lookup by share code |
 | PollDb | `Polls.CreatorId` | "My polls" query |
 | PollDb | `Polls.ExpiresAt` | Cleanup service query |
-| PollDb | `PollOptions.(PollId, OptionIndex)` | Ordered option lookup |
-| VoteDb | `Votes.(PollCode, VoterToken)` (UNIQUE) | One vote per voter per poll |
-| VoteDb | `Votes.(PollCode, OptionIndex)` | Vote-count aggregation |
-| VoteDb | `Votes.VotedAt` | Analytics (votes over time) |
-| VoteDb | `Questions.PollCode` | List a poll's Q&A questions |
-| VoteDb | `QuestionUpvotes.(QuestionId, VoterKey)` (UNIQUE) | One upvote per person per question |
+| PollDb | `Questions.(PollId, QuestionIndex)` | Ordered question lookup |
+| PollDb | `PollOptions.(QuestionId, OptionIndex)` | Ordered option lookup |
+| VoteDb | `Votes.(PollCode, QuestionId, VoterToken)` (UNIQUE) | One vote per voter per question |
+| VoteDb | `Votes.(PollCode, QuestionId, OptionIndex)` | Per-question vote-count aggregation |
+| VoteDb | `Votes.VotedAt` | Analytics (submissions over time) |
+| VoteDb | `AudienceQuestions.PollCode` | List a poll's audience Ask/Q&A questions |
+| VoteDb | `AudienceQuestionUpvotes.(AudienceQuestionId, VoterKey)` (UNIQUE) | One upvote per person per audience question |
 | IdentityDb | `Users.Email` (UNIQUE) | Login lookup |
 
 ### Cross-Service References
 
 - `Poll.CreatorId` stores a Guid taken from the JWT (via the `X-User-Id` header) — **not** a FK to `Users` (that table lives in IdentityDb).
-- `Vote.PollCode` stores a string — **not** a FK to `Polls` (that table lives in PollDb).
-- Cross-service validation happens via HTTP: the Vote API calls the Poll API to confirm a poll exists and is active before accepting a vote. If the Poll API is down, the Vote API rejects the vote rather than accepting a potentially invalid one.
+- `Vote.PollCode` stores a string and `Vote.QuestionId` stores a Guid — **neither** is a FK to `Polls`/`Questions` (those tables live in PollDb). The `QuestionId` is minted by the Poll API and learned by the Vote API over HTTP; the Vote API validates each answer against the poll's questions before accepting it.
+- Cross-service validation happens via HTTP: the Vote API calls the Poll API to confirm a poll exists, is active, and to fetch its questions + options before accepting a vote. If the Poll API is down, the Vote API rejects the vote rather than accepting a potentially invalid one.
 
 ---
 
@@ -496,8 +517,8 @@ All external endpoints are reached **through the Gateway**.
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/api/polls` | **Required** | Create a new poll (login required; `CreatorId` from `X-User-Id`) |
-| GET | `/api/polls/{code}` | No | Get poll details + options (response includes `creatorId`) |
+| POST | `/api/polls` | **Required** | Create a survey: `{ title?, questions: [{ text, type, options }], expiryHours? }` (login required; `CreatorId` from `X-User-Id`) |
+| GET | `/api/polls/{code}` | No | Get poll details with **nested questions + options** (response includes `creatorId`) |
 | PATCH | `/api/polls/{code}/close` | Required (owner **or** admin) | Close poll |
 | DELETE | `/api/polls/{code}` | Required (owner **or** admin) | Delete poll |
 | GET | `/api/polls/my-polls` | Required | List creator's polls |
@@ -507,15 +528,15 @@ All external endpoints are reached **through the Gateway**.
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/api/polls/{code}/vote` | No | Submit a vote (option index, or text for OpenText polls) |
-| GET | `/api/polls/{code}/results` | No | Get vote results (or text answers for OpenText) |
-| GET | `/api/polls/{code}/analytics` | **Required (owner or admin)** | Votes-over-time, peak minute, top option (403 if not owner/admin) |
-| GET | `/api/polls/{code}/questions` | No | List Q&A questions (pinned → upvotes → oldest) |
-| POST | `/api/polls/{code}/questions` | No | Submit a Q&A question (anonymous) |
-| POST | `/api/polls/{code}/questions/{id}/upvote` | No | Upvote a question — **one per person** (`X-User-Id` or body `voterToken`); repeat → 409 |
-| POST | `/api/polls/{code}/questions/{id}/pin` | Owner **or** admin | Toggle a question's pinned state (403 otherwise) |
-| DELETE | `/api/polls/{code}/questions/{id}` | Owner **or** admin | Delete a question (403 otherwise) |
-| WS | `/hubs/poll` | No | SignalR live results (`ReceiveVoteUpdate`) + Q&A (`ReceiveQuestionsUpdate`) |
+| POST | `/api/polls/{code}/vote` | No | Submit a **batch**: `{ voterToken, authorName?, authorRole?, answers: [{ questionId, optionIndex, textAnswer? }] }` — one answer per question, one submission per voter (repeat → 409) |
+| GET | `/api/polls/{code}/results` | No | Get **per-question** results (`totalVoters` + `questions[]`, each with option tallies or OpenText answers) |
+| GET | `/api/polls/{code}/analytics` | **Required (owner or admin)** | Submissions-over-time, peak minute, per-question top option (403 if not owner/admin) |
+| GET | `/api/polls/{code}/ask` | No | List audience Ask/Q&A questions (pinned → upvotes → oldest) |
+| POST | `/api/polls/{code}/ask` | No | Submit an audience Ask question (anonymous) |
+| POST | `/api/polls/{code}/ask/{id}/upvote` | No | Upvote an audience question — **one per person** (`X-User-Id` or body `voterToken`); repeat → 409 |
+| POST | `/api/polls/{code}/ask/{id}/pin` | Owner **or** admin | Toggle an audience question's pinned state (403 otherwise) |
+| DELETE | `/api/polls/{code}/ask/{id}` | Owner **or** admin | Delete an audience question (403 otherwise) |
+| WS | `/hubs/poll` | No | SignalR live results (`ReceiveVoteUpdate`, per-question snapshot) + audience Ask (`ReceiveAskUpdate`) |
 
 ### Identity API
 
@@ -540,7 +561,7 @@ A **gateway-wide YARP code transform** (`AddRequestTransform`) sets the `X-User-
 | 3 | signalr-hub | `/hubs/{**remainder}` | vote-api | No | (WebSocket) |
 | 4 | auth-route | `/api/auth/{**remainder}` | identity-api | No | — |
 | 8 | vote-analytics | `/api/polls/{code}/analytics` | vote-api | **authenticated** | ← `sub`+`role` |
-| 9 | vote-questions | `/api/polls/{code}/questions/{**remainder}` | vote-api | No | ← `sub`+`role` (if token present) |
+| 9 | vote-ask | `/api/polls/{code}/ask/{**remainder}` | vote-api | No | ← `sub`+`role` (if token present) |
 | 5 | polls-protected | `/api/polls/my-polls` | poll-api | authenticated | ← `sub`+`role` |
 | 6 | polls-close | `/api/polls/{code}/close` (PATCH) | poll-api | authenticated | ← `sub`+`role` |
 | 7 | polls-delete | `/api/polls/{code}` (DELETE) | poll-api | authenticated | ← `sub`+`role` |
@@ -590,24 +611,27 @@ VOTE API
         ▼
 POLL API
   PollsController.GetPoll(code) → PollService.GetByCodeAsync(code)
-  ← 200 OK + PollResponse  (poll exists / is active)
+  ← 200 OK + PollResponse  (poll exists / is active; nested questions + options)
   ← 404 Not Found          (poll doesn't exist)
+
+The Vote API uses the returned questions (their `Id`, `Type`, and `Options`) to validate every
+answer in a batch — an answer's `questionId` must exist and its `optionIndex` must be in range.
 ```
 
 ### SignalR (real-time results)
 
 ```
 1. Client opens Results Page
-   → GET /api/polls/{code}/results          (initial snapshot, via Gateway)
+   → GET /api/polls/{code}/results          (initial per-question snapshot, via Gateway)
    → Connect to /hubs/poll                  (Gateway proxies WebSocket to Vote API)
    → invoke("JoinPollGroup", pollCode)      (subscribe to this poll's group)
    → listen on "ReceiveVoteUpdate"
 
-2. Another user votes
+2. Another user submits the survey (batch)
    → POST /api/polls/{code}/vote → Gateway → Vote API
-   → VoteService saves the vote to VoteDb
-   → VoteService broadcasts updated results via IHubContext to Group(code)
-   → all connected clients receive "ReceiveVoteUpdate" → charts update live
+   → VoteService validates the whole batch, then saves one Vote row per answer to VoteDb
+   → VoteService broadcasts the updated whole-poll (per-question) results via IHubContext to Group(code)
+   → all connected clients receive "ReceiveVoteUpdate" → every question's chart updates live
 
 3. Client leaves the page
    → invoke("LeavePollGroup", pollCode) → disconnect
@@ -665,7 +689,7 @@ Three roles:
 | My Polls · close · delete · pin/delete Q&A | ❌ | ✅ own | ✅ any |
 | Manage users · global dashboard | ❌ | ❌ | ✅ |
 
-**One upvote per person** (`QuestionUpvote` unique `(QuestionId, VoterKey)`): the voter key is the `X-User-Id` for logged-in users, otherwise the browser voter token — so a guest and an account are each capped at one upvote per question; a repeat returns **409**.
+**One upvote per person** (`AudienceQuestionUpvote` unique `(AudienceQuestionId, VoterKey)`): the voter key is the `X-User-Id` for logged-in users, otherwise the browser voter token — so a guest and an account are each capped at one upvote per audience question; a repeat returns **409**.
 
 **Admin bootstrap:** Identity API promotes any email listed in `Admin:Emails` (env `Admin__Emails__0`, `__1`, …) to `Admin` on startup — idempotent, and it promotes already-registered accounts too. There is no self-service path to `Admin`; only an existing admin (or the bootstrap list) can grant it.
 
@@ -797,12 +821,15 @@ The shared chrome (auth-aware nav + footer) lives in `App.tsx`; the landing rout
 | **Microservices over monolith** | Independent deployment, scaling, and development per domain |
 | **YARP API Gateway** | .NET-native reverse proxy with built-in transforms for JWT → `X-User-Id` |
 | **Database per service** | Data ownership, no cross-service schema dependencies |
+| **Poll → Question → Option nesting** | A poll is a survey of one or more questions, each owning its own type and options (FK + cascade within PollDb). A single-question poll is just the N=1 case |
 | **SignalR in Vote API only** | Only voting needs real-time; other services use plain REST |
 | **`PollCode` as a string in VoteDb** | No FK across databases; validated via HTTP call to Poll API |
+| **`Vote.QuestionId` as a plain Guid in VoteDb** | No FK to `Questions` (different DB); the id is minted by the Poll API and each answer is validated against the poll's questions fetched over HTTP |
+| **Batch vote submission (one submission per voter)** | The voter answers every question and submits once; the whole batch is validated before any row is saved, then persisted as one `AddRange`/`SaveChanges`. Dedup is poll-level (`HasVotedAsync`) backed by the unique `(PollCode, QuestionId, VoterToken)` index |
 | **`CreatorId` as a plain Guid in PollDb** | No FK to Users (different DB); value comes from the JWT via `X-User-Id` |
 | **JWT validated at Gateway only** | Centralized auth; services trust the Gateway's `X-User-Id`/`X-User-Role` headers |
 | **Role in the JWT `role` claim → `X-User-Role` header** | Same proven path as `sub`→`X-User-Id`; coarse gating at the Gateway, fine owner/admin checks in services (defense-in-depth) |
-| **Upvote dedup via a `QuestionUpvote` row** (unique `(QuestionId, VoterKey)`) | One upvote per person without a login requirement; voter key = user id when present, else browser token |
+| **Upvote dedup via an `AudienceQuestionUpvote` row** (unique `(AudienceQuestionId, VoterKey)`) | One upvote per person without a login requirement; voter key = user id when present, else browser token |
 | **Admin bootstrap via `Admin:Emails` config** | No self-service privilege escalation; the first admin is seeded from a trusted env list, then admins manage roles |
 | **`Result<T>` instead of exceptions** | Explicit control flow for expected failures across all services |
 | **Typed `HttpClient` for inter-service calls** | Correct `HttpClient` lifetime; avoids socket exhaustion |
@@ -810,10 +837,10 @@ The shared chrome (auth-aware nav + footer) lives in `App.tsx`; the landing rout
 | **Voter deduplication via token** | Session/fingerprint-based — no login required for voters |
 | **`PollCleanupService` background hosted service + lazy close-on-read** | Two-tier expiry: the computed `IsActive` (`!IsExpired && !IsClosed`) makes a poll behave as closed the instant `ExpiresAt` passes (vote-rejection, banner, pill all read `IsActive`); the background sweep (`PollCleanup:IntervalSeconds`) **and** a lazy close-on-read in `GetByCodeAsync` both persist `Status = Closed`. The lazy path means auto-close doesn't depend on the sweep being awake on a free-tier host (resolved [KNOWN_ISSUES.md](KNOWN_ISSUES.md) ISSUE-001) |
 | **Question type stored as a string** (`HasConversion<string>`) | Readable in the DB; new types add safely without re-ordering an int enum |
-| **OpenText answers in `Vote.TextAnswer`** | Reuses the Votes table/dedup path; results return `TextAnswers` instead of option tallies |
+| **OpenText answers in `Vote.TextAnswer`** | Reuses the Votes table/dedup path; a question's results return `TextAnswers` instead of option tallies |
 | **OpenText answers carry a client-supplied author label** (`AuthorName`/`AuthorRole`) | Results render answers as a social-style comment feed; logged-in users show their email local-part + role, guests show **Anonymous**. Display-only and client-supplied (the SPA already decodes the JWT for UX only) — a text-answer feed is not a security boundary, so this needs no Gateway change |
-| **Anonymous Q&A in Vote API** | Lives next to the real-time hub; broadcasts `ReceiveQuestionsUpdate` like vote updates — no login required |
+| **Anonymous audience Ask/Q&A in Vote API** (`AudienceQuestion`) | Lives next to the real-time hub; broadcasts `ReceiveAskUpdate` like vote updates — no login required. Named "Ask"/`AudienceQuestion` to stay distinct from a survey `Question` (owned by the Poll API) |
 | **QR share code in `ShareLink` (`qrcode.react`, SVG)** | A "Show QR" toggle encodes the vote URL so an audience can scan to vote and watch results update live — frontend-only, no backend/route change; SVG renders crisply on a projector and works offline (no external QR service). Kept on a white quiet-zone background for scan reliability |
-| **Client-side CSV export (`utils/csv.ts`)** | "Download CSV" on the Results page builds the file from the already-loaded `VoteResults` (option tallies, or OpenText answers with author) — no new endpoint/route; a UTF-8 BOM makes Excel open it cleanly |
+| **Client-side CSV export (`utils/csv.ts`)** | "Download CSV" on the Results page builds one flat file from the already-loaded per-question `VoteResults` (each question's option tallies, or OpenText answers with author) — no new endpoint/route; a UTF-8 BOM makes Excel open it cleanly |
 | **No-dependency toast context (`Toast.tsx`)** | `ToastProvider`/`useToast` give lightweight action feedback (copy/create/close/delete) without adding a library, matching the project's minimal-deps style; styled from tokens so it themes automatically |
 | **"Election Night" dark-first UI (Tailwind v4 + re-paletted legacy CSS)** | The frontend redesign (todo Phase 18). The landing (`/`) is rebuilt in **Tailwind v4** (`@theme` tokens in `src/tailwind.css`) as a dark "live results board"; app pages keep their token-driven `index.css` but it's **re-paletted to the same dark palette** and forced dark-first (`<html data-theme="dark">`). The legacy `index.css` is imported into the **lowest CSS cascade layer** so Tailwind utilities win on the landing without disturbing app pages. The old light/dark **toggle (`useTheme`) was removed** — the app is dark-only. Type: Bricolage Grotesque + Hanken Grotesk + Geist Mono. Strategy in `PRODUCT.md`/`DESIGN.md` |

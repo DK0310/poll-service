@@ -192,7 +192,7 @@ export function HomePage() {
             <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
               <Link
                 to="/create"
-                className="inline-flex items-center gap-2 rounded-full bg-tangerine px-7 py-3.5 font-display font-semibold text-bg shadow-glow-tangerine transition duration-200 ease-out hover:-translate-y-0.5 hover:bg-amber focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-fg"
+                className="inline-flex items-center gap-2 rounded-full bg-tangerine px-7 py-3.5 font-display font-semibold text-on-accent shadow-glow-tangerine transition duration-200 ease-out hover:-translate-y-0.5 hover:bg-amber focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-fg"
               >
                 Create a poll — free
                 <ArrowRight size={18} strokeWidth={2.5} aria-hidden="true" />
@@ -341,7 +341,7 @@ export function HomePage() {
             </p>
             <Link
               to="/create"
-              className="mt-9 inline-flex items-center gap-2 rounded-full bg-tangerine px-8 py-4 font-display font-semibold text-bg shadow-glow-tangerine transition duration-200 ease-out hover:-translate-y-0.5 hover:bg-amber focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-fg"
+              className="mt-9 inline-flex items-center gap-2 rounded-full bg-tangerine px-8 py-4 font-display font-semibold text-on-accent shadow-glow-tangerine transition duration-200 ease-out hover:-translate-y-0.5 hover:bg-amber focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-fg"
             >
               Create a poll — free
               <ArrowRight size={18} strokeWidth={2.5} aria-hidden="true" />

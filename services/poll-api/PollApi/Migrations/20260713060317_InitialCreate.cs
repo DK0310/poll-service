@@ -17,7 +17,7 @@ namespace PollApi.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWID()"),
                     Code = table.Column<string>(type: "nvarchar(16)", maxLength: 16, nullable: false),
-                    Question = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Title = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Status = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     CreatorId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
@@ -29,11 +29,32 @@ namespace PollApi.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "PollOptions",
+                name: "Questions",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWID()"),
                     PollId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    QuestionIndex = table.Column<int>(type: "int", nullable: false),
+                    Text = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Type = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Questions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Questions_Polls_PollId",
+                        column: x => x.PollId,
+                        principalTable: "Polls",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PollOptions",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWID()"),
+                    QuestionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     OptionIndex = table.Column<int>(type: "int", nullable: false),
                     Text = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false)
                 },
@@ -41,17 +62,17 @@ namespace PollApi.Migrations
                 {
                     table.PrimaryKey("PK_PollOptions", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_PollOptions_Polls_PollId",
-                        column: x => x.PollId,
-                        principalTable: "Polls",
+                        name: "FK_PollOptions_Questions_QuestionId",
+                        column: x => x.QuestionId,
+                        principalTable: "Questions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_PollOptions_PollId_OptionIndex",
+                name: "IX_PollOptions_QuestionId_OptionIndex",
                 table: "PollOptions",
-                columns: new[] { "PollId", "OptionIndex" });
+                columns: new[] { "QuestionId", "OptionIndex" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_Polls_Code",
@@ -68,6 +89,11 @@ namespace PollApi.Migrations
                 name: "IX_Polls_ExpiresAt",
                 table: "Polls",
                 column: "ExpiresAt");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Questions_PollId_QuestionIndex",
+                table: "Questions",
+                columns: new[] { "PollId", "QuestionIndex" });
         }
 
         /// <inheritdoc />
@@ -75,6 +101,9 @@ namespace PollApi.Migrations
         {
             migrationBuilder.DropTable(
                 name: "PollOptions");
+
+            migrationBuilder.DropTable(
+                name: "Questions");
 
             migrationBuilder.DropTable(
                 name: "Polls");

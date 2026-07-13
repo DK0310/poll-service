@@ -12,7 +12,7 @@ using PollApi.Data;
 namespace PollApi.Migrations
 {
     [DbContext(typeof(PollDbContext))]
-    [Migration("20260601133742_InitialCreate")]
+    [Migration("20260713060317_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -48,15 +48,14 @@ namespace PollApi.Migrations
                     b.Property<DateTime?>("ExpiresAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("Question")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.HasKey("Id");
 
@@ -80,7 +79,7 @@ namespace PollApi.Migrations
                     b.Property<int>("OptionIndex")
                         .HasColumnType("int");
 
-                    b.Property<Guid>("PollId")
+                    b.Property<Guid>("QuestionId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Text")
@@ -90,15 +89,56 @@ namespace PollApi.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PollId", "OptionIndex");
+                    b.HasIndex("QuestionId", "OptionIndex");
 
                     b.ToTable("PollOptions", (string)null);
                 });
 
+            modelBuilder.Entity("PollApi.Models.Question", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<Guid>("PollId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("QuestionIndex")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PollId", "QuestionIndex");
+
+                    b.ToTable("Questions", (string)null);
+                });
+
             modelBuilder.Entity("PollApi.Models.PollOption", b =>
                 {
-                    b.HasOne("PollApi.Models.Poll", "Poll")
+                    b.HasOne("PollApi.Models.Question", "Question")
                         .WithMany("Options")
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Question");
+                });
+
+            modelBuilder.Entity("PollApi.Models.Question", b =>
+                {
+                    b.HasOne("PollApi.Models.Poll", "Poll")
+                        .WithMany("Questions")
                         .HasForeignKey("PollId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -107,6 +147,11 @@ namespace PollApi.Migrations
                 });
 
             modelBuilder.Entity("PollApi.Models.Poll", b =>
+                {
+                    b.Navigation("Questions");
+                });
+
+            modelBuilder.Entity("PollApi.Models.Question", b =>
                 {
                     b.Navigation("Options");
                 });

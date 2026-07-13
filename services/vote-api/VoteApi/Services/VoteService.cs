@@ -20,6 +20,10 @@ public class VoteService
         _hub = hub;
     }
 
+    /// <summary>
+    /// Records a batch survey submission: the voter answers every question, submitted once.
+    /// The whole batch is validated before anything is persisted.
+    /// </summary>
     public async Task<Result<VoteResultsResponse>> SubmitVoteAsync(string code, VoteRequest request)
     {
         // 1. Validate the poll exists and is active (inter-service call to Poll API)
@@ -33,47 +37,68 @@ public class VoteService
         if (string.IsNullOrWhiteSpace(request.VoterToken))
             return Result<VoteResultsResponse>.Failure("Voter token is required");
 
-        // 3. Validate the answer per poll type (OpenText = free text; others = option index)
-        var isOpenText = string.Equals(poll.Type, "OpenText", StringComparison.OrdinalIgnoreCase);
-        string? textAnswer = null;
-        string? authorName = null;
-        string? authorRole = null;
-        var optionIndex = request.OptionIndex;
-        if (isOpenText)
-        {
-            if (string.IsNullOrWhiteSpace(request.TextAnswer))
-                return Result<VoteResultsResponse>.Failure("A text answer is required");
-            textAnswer = request.TextAnswer.Trim();
-            // Author label is display-only and client-supplied (null = anonymous guest).
-            authorName = string.IsNullOrWhiteSpace(request.AuthorName) ? null : request.AuthorName.Trim();
-            authorRole = string.IsNullOrWhiteSpace(request.AuthorRole) ? null : request.AuthorRole.Trim();
-            optionIndex = 0; // not used for tallying
-        }
-        else if (optionIndex < 0 || optionIndex >= poll.Options.Count)
-        {
-            return Result<VoteResultsResponse>.Failure("Invalid option selected");
-        }
-
-        // 4. Enforce one vote per voter per poll
+        // 3. Enforce one submission per voter per poll
         if (await _repo.HasVotedAsync(code, request.VoterToken))
             return Result<VoteResultsResponse>.Failure("You have already voted on this poll");
 
-        // 5. Save the vote
-        await _repo.AddAsync(new Vote
+        if (request.Answers is null || request.Answers.Count == 0)
+            return Result<VoteResultsResponse>.Failure("An answer for every question is required");
+
+        // 4. Validate the whole batch against the poll's questions before saving anything
+        var questionsById = poll.Questions.ToDictionary(q => q.Id);
+        var answered = new HashSet<Guid>();
+        var votes = new List<Vote>();
+
+        foreach (var a in request.Answers)
         {
-            PollCode = code,
-            OptionIndex = optionIndex,
-            VoterToken = request.VoterToken,
-            TextAnswer = textAnswer,
-            AuthorName = authorName,
-            AuthorRole = authorRole,
-            VotedAt = DateTime.UtcNow
-        });
+            if (!questionsById.TryGetValue(a.QuestionId, out var q))
+                return Result<VoteResultsResponse>.Failure("Answer references an unknown question");
+            if (!answered.Add(a.QuestionId))
+                return Result<VoteResultsResponse>.Failure("Duplicate answer for a question");
 
-        // 6. Build updated results
+            var isOpenText = string.Equals(q.Type, "OpenText", StringComparison.OrdinalIgnoreCase);
+            string? textAnswer = null;
+            string? authorName = null;
+            string? authorRole = null;
+            var optionIndex = a.OptionIndex;
+
+            if (isOpenText)
+            {
+                if (string.IsNullOrWhiteSpace(a.TextAnswer))
+                    return Result<VoteResultsResponse>.Failure("A text answer is required");
+                textAnswer = a.TextAnswer.Trim();
+                // Author label is display-only and client-supplied (null = anonymous guest).
+                authorName = string.IsNullOrWhiteSpace(request.AuthorName) ? null : request.AuthorName.Trim();
+                authorRole = string.IsNullOrWhiteSpace(request.AuthorRole) ? null : request.AuthorRole.Trim();
+                optionIndex = 0; // not used for tallying
+            }
+            else if (optionIndex < 0 || optionIndex >= q.Options.Count)
+            {
+                return Result<VoteResultsResponse>.Failure("Invalid option selected");
+            }
+
+            votes.Add(new Vote
+            {
+                PollCode = code,
+                QuestionId = q.Id,
+                OptionIndex = optionIndex,
+                VoterToken = request.VoterToken,
+                TextAnswer = textAnswer,
+                AuthorName = authorName,
+                AuthorRole = authorRole,
+                VotedAt = DateTime.UtcNow
+            });
+        }
+
+        // Every question must be answered exactly once.
+        if (answered.Count != poll.Questions.Count)
+            return Result<VoteResultsResponse>.Failure("Please answer every question");
+
+        // 5. Persist the whole batch in one transaction
+        await _repo.AddRangeAsync(votes);
+
+        // 6. Build updated results and broadcast the whole-poll snapshot to this poll's group
         var results = await BuildResultsAsync(code, poll);
-
-        // 7. Broadcast the new results to everyone watching this poll's group
         await _hub.Clients.Group(code).SendAsync("ReceiveVoteUpdate", results);
 
         return Result<VoteResultsResponse>.Success(results);
@@ -89,8 +114,8 @@ public class VoteService
         return Result<VoteResultsResponse>.Success(results);
     }
 
-    /// <summary>Creator analytics: votes over time (per-minute), peak minute, and the leading option.
-    /// Restricted to the poll owner or an admin.</summary>
+    /// <summary>Creator analytics: submissions over time (per-minute), peak minute, and each question's
+    /// leading option. Restricted to the poll owner or an admin.</summary>
     public async Task<Result<AnalyticsResponse>> GetAnalyticsAsync(string code, Guid? userId, bool isAdmin)
     {
         var poll = await _pollClient.GetPollAsync(code);
@@ -102,22 +127,10 @@ public class VoteService
             return Result<AnalyticsResponse>.Failure("Forbidden — poll owner or admin only");
 
         var counts = await _repo.GetVoteCountsAsync(code);
-        var timestamps = await _repo.GetVoteTimestampsAsync(code);
-        var totalVotes = counts.Sum(c => c.Count);
+        var submissions = await _repo.GetSubmissionTimestampsAsync(code);
 
-        // Leading option (null when there are no votes yet, or for OpenText polls)
-        var isOpenText = string.Equals(poll.Type, "OpenText", StringComparison.OrdinalIgnoreCase);
-        TopOption? topOption = null;
-        if (!isOpenText && counts.Count > 0)
-        {
-            var best = counts.OrderByDescending(c => c.Count).First();
-            var text = poll.Options.FirstOrDefault(o => o.OptionIndex == best.OptionIndex)?.Text
-                       ?? $"Option {best.OptionIndex}";
-            topOption = new TopOption { OptionIndex = best.OptionIndex, Text = text, VoteCount = best.Count };
-        }
-
-        // Per-minute buckets (truncate VotedAt to the minute, UTC) → timeline + peak
-        var timeline = timestamps
+        // Per-minute buckets of distinct submissions (truncate to the minute, UTC) → timeline + peak
+        var timeline = submissions
             .GroupBy(t => new DateTime(t.Year, t.Month, t.Day, t.Hour, t.Minute, 0, DateTimeKind.Utc))
             .Select(g => new TimeBucket { Minute = g.Key, Count = g.Count() })
             .OrderBy(b => b.Minute)
@@ -126,58 +139,105 @@ public class VoteService
             ? timeline.OrderByDescending(b => b.Count).ThenBy(b => b.Minute).First()
             : null;
 
+        var questions = poll.Questions
+            .OrderBy(q => q.QuestionIndex)
+            .Select(q =>
+            {
+                var isOpenText = string.Equals(q.Type, "OpenText", StringComparison.OrdinalIgnoreCase);
+                var qCounts = counts.Where(c => c.QuestionId == q.Id).ToList();
+                var totalVotes = qCounts.Sum(c => c.Count);
+
+                TopOption? top = null;
+                if (!isOpenText && qCounts.Count > 0)
+                {
+                    var best = qCounts.OrderByDescending(c => c.Count).First();
+                    var text = q.Options.FirstOrDefault(o => o.OptionIndex == best.OptionIndex)?.Text
+                               ?? $"Option {best.OptionIndex}";
+                    top = new TopOption { OptionIndex = best.OptionIndex, Text = text, VoteCount = best.Count };
+                }
+
+                return new QuestionAnalytics
+                {
+                    QuestionId = q.Id,
+                    QuestionIndex = q.QuestionIndex,
+                    Text = q.Text,
+                    Type = q.Type,
+                    TotalVotes = totalVotes,
+                    TopOption = top
+                };
+            })
+            .ToList();
+
         return Result<AnalyticsResponse>.Success(new AnalyticsResponse
         {
             PollCode = code,
-            Question = poll.Question,
-            TotalVotes = totalVotes,
-            TopOption = topOption,
+            Title = poll.Title,
+            TotalVoters = submissions.Count,
+            Timeline = timeline,
             PeakMinute = peak,
-            Timeline = timeline
+            Questions = questions
         });
     }
 
     private async Task<VoteResultsResponse> BuildResultsAsync(string code, PollInfo poll)
     {
-        // OpenText polls aren't tallied — return the submitted text answers instead of option counts.
-        if (string.Equals(poll.Type, "OpenText", StringComparison.OrdinalIgnoreCase))
-        {
-            var answers = await _repo.GetTextAnswersAsync(code);
-            return new VoteResultsResponse
-            {
-                PollCode = code,
-                Question = poll.Question,
-                Type = poll.Type,
-                TotalVotes = answers.Count,
-                IsActive = poll.IsActive,
-                TextAnswers = answers
-            };
-        }
+        var counts = await _repo.GetVoteCountsAsync(code);
+        var texts = await _repo.GetTextAnswersAsync(code);
+        var totalVoters = await _repo.GetVoterCountAsync(code);
 
-        var voteCounts = await _repo.GetVoteCountsAsync(code);
-        var totalVotes = voteCounts.Sum(vc => vc.Count);
+        var questions = poll.Questions
+            .OrderBy(q => q.QuestionIndex)
+            .Select(q =>
+            {
+                // OpenText questions aren't tallied — return the submitted text answers instead.
+                if (string.Equals(q.Type, "OpenText", StringComparison.OrdinalIgnoreCase))
+                {
+                    var answers = texts.Where(t => t.QuestionId == q.Id).Select(t => t.Answer).ToList();
+                    return new QuestionResults
+                    {
+                        QuestionId = q.Id,
+                        QuestionIndex = q.QuestionIndex,
+                        Text = q.Text,
+                        Type = q.Type,
+                        TotalVotes = answers.Count,
+                        TextAnswers = answers
+                    };
+                }
+
+                var qCounts = counts.Where(c => c.QuestionId == q.Id).ToList();
+                var totalVotes = qCounts.Sum(c => c.Count);
+                return new QuestionResults
+                {
+                    QuestionId = q.Id,
+                    QuestionIndex = q.QuestionIndex,
+                    Text = q.Text,
+                    Type = q.Type,
+                    TotalVotes = totalVotes,
+                    Options = q.Options
+                        .OrderBy(o => o.OptionIndex)
+                        .Select(o =>
+                        {
+                            var count = qCounts.FirstOrDefault(c => c.OptionIndex == o.OptionIndex)?.Count ?? 0;
+                            return new OptionResult
+                            {
+                                OptionIndex = o.OptionIndex,
+                                Text = o.Text,
+                                VoteCount = count,
+                                Percentage = totalVotes > 0 ? Math.Round((double)count / totalVotes * 100, 1) : 0
+                            };
+                        })
+                        .ToList()
+                };
+            })
+            .ToList();
 
         return new VoteResultsResponse
         {
             PollCode = code,
-            Question = poll.Question,
-            Type = poll.Type,
-            TotalVotes = totalVotes,
+            Title = poll.Title,
             IsActive = poll.IsActive,
-            Options = poll.Options
-                .OrderBy(o => o.OptionIndex)
-                .Select(o =>
-                {
-                    var count = voteCounts.FirstOrDefault(vc => vc.OptionIndex == o.OptionIndex)?.Count ?? 0;
-                    return new OptionResult
-                    {
-                        OptionIndex = o.OptionIndex,
-                        Text = o.Text,
-                        VoteCount = count,
-                        Percentage = totalVotes > 0 ? Math.Round((double)count / totalVotes * 100, 1) : 0
-                    };
-                })
-                .ToList()
+            TotalVoters = totalVoters,
+            Questions = questions
         };
     }
 }

@@ -1,14 +1,14 @@
 import { useState, type FormEvent } from 'react';
 import { MessageSquare, ChevronUp, Pin, Send } from 'lucide-react';
-import { useQuestions } from '../hooks/useQuestions';
+import { useAsk } from '../hooks/useAsk';
 
-interface QandAPanelProps {
+interface AskPanelProps {
   code: string;
   canModerate?: boolean; // poll owner or admin — may pin/unpin
 }
 
-export function QandAPanel({ code, canModerate = false }: QandAPanelProps) {
-  const { questions, submit, upvote, pin } = useQuestions(code);
+export function AskPanel({ code, canModerate = false }: AskPanelProps) {
+  const { questions, submit, upvote, pin } = useAsk(code);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
 

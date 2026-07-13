@@ -10,18 +10,20 @@ interface PollCardProps {
 }
 
 export function PollCard({ poll, onClose, onDelete, busy }: PollCardProps) {
-  const optionsText = poll.options.length > 0 ? `${poll.options.length} options` : 'open text';
+  const count = poll.questions.length;
+  const questionsText = `${count} ${count === 1 ? 'question' : 'questions'}`;
+  const heading = poll.title ?? poll.questions[0]?.text ?? 'Untitled survey';
 
   return (
     <article className="card poll-card">
       <div className="poll-card__head">
-        <h3>{poll.question}</h3>
+        <h3>{heading}</h3>
         <span className={`pill ${poll.isActive ? 'pill--open' : 'pill--closed'}`}>
           {poll.isActive ? 'Open' : 'Closed'}
         </span>
       </div>
 
-      <p className="poll-card__meta mono">/poll/{poll.code} · {optionsText}</p>
+      <p className="poll-card__meta mono">/poll/{poll.code} · {questionsText}</p>
 
       <div className="poll-card__actions">
         <div className="poll-card__nav">

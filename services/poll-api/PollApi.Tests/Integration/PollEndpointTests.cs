@@ -20,9 +20,13 @@ public class PollEndpointTests : IClassFixture<CustomWebAppFactory>
         return await _client.SendAsync(req);
     }
 
+    // Builds a single-question survey create body (SingleChoice) in the nested shape.
+    private static object SingleQuestionBody(string question, params string[] options) =>
+        new { questions = new[] { new { text = question, type = "SingleChoice", options } } };
+
     private async Task<string> CreatePollAsync(string question = "Favorite language?")
     {
-        var res = await PostCreateAsync(new { question, options = new[] { "C#", "TypeScript", "Python" } });
+        var res = await PostCreateAsync(SingleQuestionBody(question, "C#", "TypeScript", "Python"));
         res.EnsureSuccessStatusCode();
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
         return body.GetProperty("code").GetString()!;
@@ -33,26 +37,50 @@ public class PollEndpointTests : IClassFixture<CustomWebAppFactory>
     {
         var res = await PostCreateAsync(new
         {
-            question = "Favorite language?",
-            options = new[] { "C#", "TypeScript", "Python" }
+            title = "Language survey",
+            questions = new[]
+            {
+                new { text = "Favorite language?", type = "SingleChoice", options = new[] { "C#", "TypeScript", "Python" } }
+            }
         });
 
         Assert.Equal(HttpStatusCode.Created, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("Favorite language?", body.GetProperty("question").GetString());
+        Assert.Equal("Language survey", body.GetProperty("title").GetString());
         Assert.Equal(5, body.GetProperty("code").GetString()!.Length);
-        Assert.Equal(3, body.GetProperty("options").GetArrayLength());
+        var questions = body.GetProperty("questions");
+        Assert.Equal(1, questions.GetArrayLength());
+        Assert.Equal("Favorite language?", questions[0].GetProperty("text").GetString());
+        Assert.Equal(3, questions[0].GetProperty("options").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task CreatePoll_Returns201_WithMultipleQuestions()
+    {
+        var res = await PostCreateAsync(new
+        {
+            title = "Event feedback",
+            questions = new object[]
+            {
+                new { text = "Overall?", type = "Rating", options = Array.Empty<string>() },
+                new { text = "Recommend?", type = "YesNo", options = Array.Empty<string>() },
+                new { text = "Favorite talk?", type = "SingleChoice", options = new[] { "Keynote", "Workshop" } }
+            }
+        });
+
+        Assert.Equal(HttpStatusCode.Created, res.StatusCode);
+        var body = await res.Content.ReadFromJsonAsync<JsonElement>();
+        var questions = body.GetProperty("questions");
+        Assert.Equal(3, questions.GetArrayLength());
+        Assert.Equal(5, questions[0].GetProperty("options").GetArrayLength());   // Rating → 1..5
+        Assert.Equal(2, questions[1].GetProperty("options").GetArrayLength());   // YesNo → Yes/No
     }
 
     [Fact]
     public async Task CreatePoll_Returns401_WithoutUserHeader()
     {
         // Creating now requires a logged-in user (Gateway enforces; no X-User-Id here).
-        var res = await PostCreateAsync(new
-        {
-            question = "Anon?",
-            options = new[] { "A", "B" }
-        }, userId: null);
+        var res = await PostCreateAsync(SingleQuestionBody("Anon?", "A", "B"), userId: null);
 
         Assert.Equal(HttpStatusCode.Unauthorized, res.StatusCode);
     }
@@ -60,11 +88,7 @@ public class PollEndpointTests : IClassFixture<CustomWebAppFactory>
     [Fact]
     public async Task CreatePoll_Returns400_WhenTooFewOptions()
     {
-        var res = await PostCreateAsync(new
-        {
-            question = "Only one?",
-            options = new[] { "Solo" }
-        });
+        var res = await PostCreateAsync(SingleQuestionBody("Only one?", "Solo"));
 
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
     }

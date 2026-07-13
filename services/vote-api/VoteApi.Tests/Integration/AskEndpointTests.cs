@@ -4,14 +4,14 @@ using System.Text.Json;
 
 namespace VoteApi.Tests.Integration;
 
-public class QuestionEndpointTests : IClassFixture<CustomWebAppFactory>
+public class AskEndpointTests : IClassFixture<CustomWebAppFactory>
 {
     private readonly HttpClient _client;
-    public QuestionEndpointTests(CustomWebAppFactory factory) => _client = factory.CreateClient();
+    public AskEndpointTests(CustomWebAppFactory factory) => _client = factory.CreateClient();
 
     private async Task<string> SubmitAsync(string code, string text)
     {
-        var res = await _client.PostAsJsonAsync($"/api/polls/{code}/questions", new { text });
+        var res = await _client.PostAsJsonAsync($"/api/polls/{code}/ask", new { text });
         res.EnsureSuccessStatusCode();
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
         return body.GetProperty("id").GetString()!;
@@ -20,7 +20,7 @@ public class QuestionEndpointTests : IClassFixture<CustomWebAppFactory>
     [Fact]
     public async Task Submit_Returns200_WithQuestion()
     {
-        var res = await _client.PostAsJsonAsync("/api/polls/qa1/questions", new { text = "Is this live?" });
+        var res = await _client.PostAsJsonAsync("/api/polls/qa1/ask", new { text = "Is this live?" });
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
@@ -33,7 +33,7 @@ public class QuestionEndpointTests : IClassFixture<CustomWebAppFactory>
     {
         await SubmitAsync("qa2", "First question");
 
-        var res = await _client.GetAsync("/api/polls/qa2/questions");
+        var res = await _client.GetAsync("/api/polls/qa2/ask");
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
@@ -45,7 +45,7 @@ public class QuestionEndpointTests : IClassFixture<CustomWebAppFactory>
     {
         var id = await SubmitAsync("qa3", "Upvote me");
 
-        var res = await _client.PostAsJsonAsync($"/api/polls/qa3/questions/{id}/upvote", new { voterToken = "voter-a" });
+        var res = await _client.PostAsJsonAsync($"/api/polls/qa3/ask/{id}/upvote", new { voterToken = "voter-a" });
 
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
@@ -56,9 +56,9 @@ public class QuestionEndpointTests : IClassFixture<CustomWebAppFactory>
     public async Task Upvote_Returns409_OnDuplicate_BySameVoter()
     {
         var id = await SubmitAsync("qa3b", "Upvote once");
-        await _client.PostAsJsonAsync($"/api/polls/qa3b/questions/{id}/upvote", new { voterToken = "dup-voter" });
+        await _client.PostAsJsonAsync($"/api/polls/qa3b/ask/{id}/upvote", new { voterToken = "dup-voter" });
 
-        var res = await _client.PostAsJsonAsync($"/api/polls/qa3b/questions/{id}/upvote", new { voterToken = "dup-voter" });
+        var res = await _client.PostAsJsonAsync($"/api/polls/qa3b/ask/{id}/upvote", new { voterToken = "dup-voter" });
 
         Assert.Equal(HttpStatusCode.Conflict, res.StatusCode);
     }
@@ -67,7 +67,7 @@ public class QuestionEndpointTests : IClassFixture<CustomWebAppFactory>
     public async Task Pin_Returns200_AndTogglesPinned_WhenOwner()
     {
         var id = await SubmitAsync("qa4", "Pin me");
-        var req = new HttpRequestMessage(HttpMethod.Post, $"/api/polls/qa4/questions/{id}/pin");
+        var req = new HttpRequestMessage(HttpMethod.Post, $"/api/polls/qa4/ask/{id}/pin");
         req.Headers.Add("X-User-Id", FakePollClientService.OwnerId.ToString());
 
         var res = await _client.SendAsync(req);
@@ -83,7 +83,7 @@ public class QuestionEndpointTests : IClassFixture<CustomWebAppFactory>
         var id = await SubmitAsync("qa4b", "Pin me");
 
         // No X-User-Id / X-User-Role → not the owner, not admin.
-        var res = await _client.PostAsync($"/api/polls/qa4b/questions/{id}/pin", content: null);
+        var res = await _client.PostAsync($"/api/polls/qa4b/ask/{id}/pin", content: null);
 
         Assert.Equal(HttpStatusCode.Forbidden, res.StatusCode);
     }
@@ -91,7 +91,7 @@ public class QuestionEndpointTests : IClassFixture<CustomWebAppFactory>
     [Fact]
     public async Task Submit_Returns404_WhenPollMissing()
     {
-        var res = await _client.PostAsJsonAsync("/api/polls/nope1/questions", new { text = "x" });
+        var res = await _client.PostAsJsonAsync("/api/polls/nope1/ask", new { text = "x" });
 
         Assert.Equal(HttpStatusCode.NotFound, res.StatusCode);
     }

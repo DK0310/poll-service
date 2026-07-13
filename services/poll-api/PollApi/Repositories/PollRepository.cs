@@ -15,7 +15,8 @@ public class PollRepository
 
     public virtual Task<Poll?> GetByCodeAsync(string code)
         => _db.Polls
-            .Include(p => p.Options.OrderBy(o => o.OptionIndex))
+            .Include(p => p.Questions.OrderBy(q => q.QuestionIndex))
+                .ThenInclude(q => q.Options.OrderBy(o => o.OptionIndex))
             .FirstOrDefaultAsync(p => p.Code == code);
 
     public virtual async Task AddAsync(Poll poll)
@@ -38,7 +39,8 @@ public class PollRepository
 
     public virtual async Task<IEnumerable<Poll>> GetByCreatorAsync(Guid userId, int limit = 50)
         => await _db.Polls
-            .Include(p => p.Options)
+            .Include(p => p.Questions.OrderBy(q => q.QuestionIndex))
+                .ThenInclude(q => q.Options.OrderBy(o => o.OptionIndex))
             .Where(p => p.CreatorId == userId)
             .OrderByDescending(p => p.CreatedAt)
             .Take(limit)
@@ -46,7 +48,8 @@ public class PollRepository
 
     public virtual async Task<IEnumerable<Poll>> GetAllAsync(int limit = 200)
         => await _db.Polls
-            .Include(p => p.Options)
+            .Include(p => p.Questions.OrderBy(q => q.QuestionIndex))
+                .ThenInclude(q => q.Options.OrderBy(o => o.OptionIndex))
             .OrderByDescending(p => p.CreatedAt)
             .Take(limit)
             .ToListAsync();

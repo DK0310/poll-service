@@ -6,20 +6,13 @@ public enum PollStatus
     Closed
 }
 
-public enum PollQuestionType
-{
-    SingleChoice, // 2–6 creator-defined options
-    YesNo,        // options auto-set to Yes / No
-    Rating,       // options auto-set to 1–5
-    OpenText      // no options; voters submit free text (stored, not tallied)
-}
-
 public class Poll
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Code { get; set; } = "";
-    public string Question { get; set; } = "";
-    public PollQuestionType Type { get; set; } = PollQuestionType.SingleChoice;
+
+    /// <summary>Optional survey title. Null = untitled (the UI falls back to the first question).</summary>
+    public string? Title { get; set; }
     public PollStatus Status { get; set; } = PollStatus.Open;
     public DateTime? ExpiresAt { get; set; }
 
@@ -27,8 +20,8 @@ public class Poll
     public Guid? CreatorId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // Navigation (1-to-many)
-    public ICollection<PollOption> Options { get; set; } = new List<PollOption>();
+    // Navigation (1-to-many): a poll has many questions, each owning its options.
+    public ICollection<Question> Questions { get; set; } = new List<Question>();
 
     // Computed domain state (not persisted)
     public bool IsExpired => ExpiresAt.HasValue && ExpiresAt.Value < DateTime.UtcNow;

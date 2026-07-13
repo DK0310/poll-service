@@ -3,7 +3,7 @@ using VoteApi.Models;
 
 namespace VoteApi.DTOs;
 
-public record SubmitQuestionRequest
+public record SubmitAskRequest
 {
     [Required]
     public string Text { get; init; } = "";
@@ -16,7 +16,7 @@ public record UpvoteRequest
     public string? VoterToken { get; init; }
 }
 
-public record QuestionResponse
+public record AskResponse
 {
     public Guid Id { get; init; }
     public string Text { get; init; } = "";
@@ -24,7 +24,7 @@ public record QuestionResponse
     public bool IsPinned { get; init; }
     public DateTime CreatedAt { get; init; }
 
-    public static QuestionResponse From(Question q) => new()
+    public static AskResponse From(AudienceQuestion q) => new()
     {
         Id = q.Id,
         Text = q.Text,

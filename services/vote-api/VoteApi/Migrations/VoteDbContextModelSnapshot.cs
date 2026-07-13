@@ -22,7 +22,7 @@ namespace VoteApi.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("VoteApi.Models.Question", b =>
+            modelBuilder.Entity("VoteApi.Models.AudienceQuestion", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -54,23 +54,23 @@ namespace VoteApi.Migrations
 
                     b.HasIndex("PollCode");
 
-                    b.ToTable("Questions", (string)null);
+                    b.ToTable("AudienceQuestions", (string)null);
                 });
 
-            modelBuilder.Entity("VoteApi.Models.QuestionUpvote", b =>
+            modelBuilder.Entity("VoteApi.Models.AudienceQuestionUpvote", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWID()");
 
+                    b.Property<Guid>("AudienceQuestionId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
-
-                    b.Property<Guid>("QuestionId")
-                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("VoterKey")
                         .IsRequired()
@@ -79,10 +79,10 @@ namespace VoteApi.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("QuestionId", "VoterKey")
+                    b.HasIndex("AudienceQuestionId", "VoterKey")
                         .IsUnique();
 
-                    b.ToTable("QuestionUpvotes", (string)null);
+                    b.ToTable("AudienceQuestionUpvotes", (string)null);
                 });
 
             modelBuilder.Entity("VoteApi.Models.Vote", b =>
@@ -108,6 +108,9 @@ namespace VoteApi.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("nvarchar(16)");
 
+                    b.Property<Guid>("QuestionId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("TextAnswer")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
@@ -126,9 +129,9 @@ namespace VoteApi.Migrations
 
                     b.HasIndex("VotedAt");
 
-                    b.HasIndex("PollCode", "OptionIndex");
+                    b.HasIndex("PollCode", "QuestionId", "OptionIndex");
 
-                    b.HasIndex("PollCode", "VoterToken")
+                    b.HasIndex("PollCode", "QuestionId", "VoterToken")
                         .IsUnique();
 
                     b.ToTable("Votes", (string)null);

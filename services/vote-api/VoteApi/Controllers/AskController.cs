@@ -6,22 +6,22 @@ namespace VoteApi.Controllers;
 
 [ApiController]
 [Route("api/polls")]
-public class QuestionsController : ControllerBase
+public class AskController : ControllerBase
 {
-    private readonly QuestionService _service;
-    public QuestionsController(QuestionService service) => _service = service;
+    private readonly AskService _service;
+    public AskController(AskService service) => _service = service;
 
-    // ── GET /api/polls/{code}/questions ─────────────────────────
-    [HttpGet("{code}/questions")]
+    // ── GET /api/polls/{code}/ask ───────────────────────────────
+    [HttpGet("{code}/ask")]
     public async Task<IActionResult> List(string code)
     {
         var result = await _service.GetForPollAsync(code);
         return result.IsSuccess ? Ok(result.Value) : NotFound(new { error = result.Error });
     }
 
-    // ── POST /api/polls/{code}/questions ────────────────────────
-    [HttpPost("{code}/questions")]
-    public async Task<IActionResult> Submit(string code, [FromBody] SubmitQuestionRequest request)
+    // ── POST /api/polls/{code}/ask ──────────────────────────────
+    [HttpPost("{code}/ask")]
+    public async Task<IActionResult> Submit(string code, [FromBody] SubmitAskRequest request)
     {
         var result = await _service.SubmitAsync(code, request);
         if (result.IsSuccess) return Ok(result.Value);
@@ -30,9 +30,9 @@ public class QuestionsController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
-    // ── POST /api/polls/{code}/questions/{id}/upvote ────────────
+    // ── POST /api/polls/{code}/ask/{id}/upvote ──────────────────
     // One upvote per person: logged-in users dedup by X-User-Id; guests by their voter token.
-    [HttpPost("{code}/questions/{id:guid}/upvote")]
+    [HttpPost("{code}/ask/{id:guid}/upvote")]
     public async Task<IActionResult> Upvote(string code, Guid id, [FromBody] UpvoteRequest? request)
     {
         var voterKey = UserId()?.ToString() ?? request?.VoterToken?.Trim();
@@ -46,16 +46,16 @@ public class QuestionsController : ControllerBase
         return NotFound(new { error = result.Error });
     }
 
-    // ── POST /api/polls/{code}/questions/{id}/pin ───────────────
-    [HttpPost("{code}/questions/{id:guid}/pin")]
+    // ── POST /api/polls/{code}/ask/{id}/pin ─────────────────────
+    [HttpPost("{code}/ask/{id:guid}/pin")]
     public async Task<IActionResult> Pin(string code, Guid id)
     {
         var result = await _service.TogglePinAsync(code, id, UserId(), IsAdmin());
         return Map(result.IsSuccess, result.Error, () => Ok(result.Value));
     }
 
-    // ── DELETE /api/polls/{code}/questions/{id} ─────────────────
-    [HttpDelete("{code}/questions/{id:guid}")]
+    // ── DELETE /api/polls/{code}/ask/{id} ───────────────────────
+    [HttpDelete("{code}/ask/{id:guid}")]
     public async Task<IActionResult> Delete(string code, Guid id)
     {
         var result = await _service.DeleteAsync(code, id, UserId(), IsAdmin());

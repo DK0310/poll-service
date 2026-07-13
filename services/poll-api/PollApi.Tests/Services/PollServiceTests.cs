@@ -18,8 +18,12 @@ public class PollServiceTests
         _sut = new PollService(_repo.Object);
     }
 
+    // A single-question survey (the common case in these tests).
     private static CreatePollRequest Request(string question, params string[] options) =>
-        new() { Question = question, Options = options.ToList() };
+        new() { Questions = new() { new CreateQuestionRequest { Text = question, Options = options.ToList() } } };
+
+    private static CreateQuestionRequest Q(string text, string type = "SingleChoice", params string[] options) =>
+        new() { Text = text, Type = type, Options = options.ToList() };
 
     // ── Create: success ─────────────────────────────────────────
 
@@ -31,8 +35,9 @@ public class PollServiceTests
         var result = await _sut.CreateAsync(Request("Favorite color?", "Red", "Blue", "Green"), null);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("Favorite color?", result.Value!.Question);
-        Assert.Equal(3, result.Value.Options.Count);
+        Assert.Single(result.Value!.Questions);
+        Assert.Equal("Favorite color?", result.Value.Questions[0].Text);
+        Assert.Equal(3, result.Value.Questions[0].Options.Count);
         Assert.Equal(5, result.Value.Code.Length);
         Assert.Equal("Open", result.Value.Status);
         Assert.True(result.Value.IsActive);
@@ -45,8 +50,7 @@ public class PollServiceTests
         _repo.Setup(r => r.GetByCodeAsync(It.IsAny<string>())).ReturnsAsync((Poll?)null);
         var request = new CreatePollRequest
         {
-            Question = "Lunch?",
-            Options = new() { "Pizza", "Sushi" },
+            Questions = new() { Q("Lunch?", "SingleChoice", "Pizza", "Sushi") },
             ExpiryHours = 24
         };
 
@@ -56,15 +60,54 @@ public class PollServiceTests
         Assert.NotNull(result.Value!.ExpiresAt);
     }
 
+    [Fact]
+    public async Task Create_PersistsTitle_AndMultipleQuestions_WithOrder()
+    {
+        _repo.Setup(r => r.GetByCodeAsync(It.IsAny<string>())).ReturnsAsync((Poll?)null);
+        Poll? saved = null;
+        _repo.Setup(r => r.AddAsync(It.IsAny<Poll>())).Callback<Poll>(p => saved = p).Returns(Task.CompletedTask);
+
+        var request = new CreatePollRequest
+        {
+            Title = "Event feedback",
+            Questions = new()
+            {
+                Q("Overall?", "Rating"),
+                Q("Recommend?", "YesNo"),
+                Q("Favorite talk?", "SingleChoice", "Keynote", "Workshop")
+            }
+        };
+
+        var result = await _sut.CreateAsync(request, null);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Event feedback", result.Value!.Title);
+        Assert.Equal(3, result.Value.Questions.Count);
+        // Questions keep their submitted order via QuestionIndex.
+        Assert.Equal(new[] { 0, 1, 2 }, result.Value.Questions.Select(q => q.QuestionIndex).ToArray());
+        Assert.Equal(new[] { "Rating", "YesNo", "SingleChoice" }, result.Value.Questions.Select(q => q.Type).ToArray());
+        Assert.Equal(5, saved!.Questions.First(q => q.Type == PollQuestionType.Rating).Options.Count);
+    }
+
     // ── Create: validation failures ─────────────────────────────
 
     [Fact]
-    public async Task Create_ReturnsFailure_WhenQuestionEmpty()
+    public async Task Create_ReturnsFailure_WhenNoQuestions()
+    {
+        var result = await _sut.CreateAsync(new CreatePollRequest { Questions = new() }, null);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("at least one question", result.Error!, StringComparison.OrdinalIgnoreCase);
+        _repo.Verify(r => r.AddAsync(It.IsAny<Poll>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsFailure_WhenQuestionTextEmpty()
     {
         var result = await _sut.CreateAsync(Request("", "A", "B"), null);
 
         Assert.False(result.IsSuccess);
-        Assert.Contains("Question", result.Error!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("text is required", result.Error!, StringComparison.OrdinalIgnoreCase);
         _repo.Verify(r => r.AddAsync(It.IsAny<Poll>()), Times.Never);
     }
 
@@ -95,6 +138,26 @@ public class PollServiceTests
         Assert.Contains("empty", result.Error!, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Create_LabelsError_WithOffendingQuestionNumber()
+    {
+        // First question is valid; the second is invalid (too few options).
+        var request = new CreatePollRequest
+        {
+            Questions = new()
+            {
+                Q("Good one?", "YesNo"),
+                Q("Bad one?", "SingleChoice", "only-one")
+            }
+        };
+
+        var result = await _sut.CreateAsync(request, null);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("Question 2", result.Error!);
+        _repo.Verify(r => r.AddAsync(It.IsAny<Poll>()), Times.Never);
+    }
+
     // ── Create: question types (Merit) ──────────────────────────
 
     [Fact]
@@ -102,11 +165,11 @@ public class PollServiceTests
     {
         _repo.Setup(r => r.GetByCodeAsync(It.IsAny<string>())).ReturnsAsync((Poll?)null);
 
-        var result = await _sut.CreateAsync(new CreatePollRequest { Question = "Agree?", Type = "YesNo" }, null);
+        var result = await _sut.CreateAsync(new CreatePollRequest { Questions = new() { Q("Agree?", "YesNo") } }, null);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("YesNo", result.Value!.Type);
-        Assert.Equal(new[] { "Yes", "No" }, result.Value.Options.Select(o => o.Text).ToArray());
+        Assert.Equal("YesNo", result.Value!.Questions[0].Type);
+        Assert.Equal(new[] { "Yes", "No" }, result.Value.Questions[0].Options.Select(o => o.Text).ToArray());
     }
 
     [Fact]
@@ -114,11 +177,11 @@ public class PollServiceTests
     {
         _repo.Setup(r => r.GetByCodeAsync(It.IsAny<string>())).ReturnsAsync((Poll?)null);
 
-        var result = await _sut.CreateAsync(new CreatePollRequest { Question = "Rate it", Type = "Rating" }, null);
+        var result = await _sut.CreateAsync(new CreatePollRequest { Questions = new() { Q("Rate it", "Rating") } }, null);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(5, result.Value!.Options.Count);
-        Assert.Equal("5", result.Value.Options[4].Text);
+        Assert.Equal(5, result.Value!.Questions[0].Options.Count);
+        Assert.Equal("5", result.Value.Questions[0].Options[4].Text);
     }
 
     [Fact]
@@ -126,18 +189,18 @@ public class PollServiceTests
     {
         _repo.Setup(r => r.GetByCodeAsync(It.IsAny<string>())).ReturnsAsync((Poll?)null);
 
-        var result = await _sut.CreateAsync(new CreatePollRequest { Question = "Thoughts?", Type = "OpenText" }, null);
+        var result = await _sut.CreateAsync(new CreatePollRequest { Questions = new() { Q("Thoughts?", "OpenText") } }, null);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("OpenText", result.Value!.Type);
-        Assert.Empty(result.Value.Options);
+        Assert.Equal("OpenText", result.Value!.Questions[0].Type);
+        Assert.Empty(result.Value.Questions[0].Options);
     }
 
     [Fact]
     public async Task Create_ReturnsFailure_WhenInvalidType()
     {
         var result = await _sut.CreateAsync(
-            new CreatePollRequest { Question = "Q", Type = "Bogus", Options = new() { "a", "b" } }, null);
+            new CreatePollRequest { Questions = new() { Q("Q", "Bogus", "a", "b") } }, null);
 
         Assert.False(result.IsSuccess);
         Assert.Contains("type", result.Error!, StringComparison.OrdinalIgnoreCase);
@@ -151,11 +214,19 @@ public class PollServiceTests
         var poll = new Poll
         {
             Code = "abc12",
-            Question = "Test?",
-            Options = new List<PollOption>
+            Title = "Test survey",
+            Questions = new List<Question>
             {
-                new() { OptionIndex = 1, Text = "B" },
-                new() { OptionIndex = 0, Text = "A" }
+                new()
+                {
+                    QuestionIndex = 0,
+                    Text = "Test?",
+                    Options = new List<PollOption>
+                    {
+                        new() { OptionIndex = 1, Text = "B" },
+                        new() { OptionIndex = 0, Text = "A" }
+                    }
+                }
             }
         };
         _repo.Setup(r => r.GetByCodeAsync("abc12")).ReturnsAsync(poll);
@@ -163,10 +234,10 @@ public class PollServiceTests
         var result = await _sut.GetByCodeAsync("abc12");
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("Test?", result.Value!.Question);
+        Assert.Equal("Test?", result.Value!.Questions[0].Text);
         // Options come back ordered by index
-        Assert.Equal(0, result.Value.Options[0].OptionIndex);
-        Assert.Equal(1, result.Value.Options[1].OptionIndex);
+        Assert.Equal(0, result.Value.Questions[0].Options[0].OptionIndex);
+        Assert.Equal(1, result.Value.Questions[0].Options[1].OptionIndex);
     }
 
     [Fact]
@@ -187,7 +258,6 @@ public class PollServiceTests
         var poll = new Poll
         {
             Code = "exp01",
-            Question = "Old?",
             Status = PollStatus.Open,
             ExpiresAt = DateTime.UtcNow.AddMinutes(-1)
         };
@@ -208,7 +278,6 @@ public class PollServiceTests
         var poll = new Poll
         {
             Code = "act01",
-            Question = "Fresh?",
             Status = PollStatus.Open,
             ExpiresAt = DateTime.UtcNow.AddHours(1)
         };
@@ -221,13 +290,13 @@ public class PollServiceTests
         _repo.Verify(r => r.UpdateAsync(It.IsAny<Poll>()), Times.Never);
     }
 
-    // ── Close (creator-only; logic ready for Phase 6) ───────────
+    // ── Close (creator-only) ────────────────────────────────────
 
     [Fact]
     public async Task Close_ReturnsSuccess_WhenCreator()
     {
         var creatorId = Guid.NewGuid();
-        var poll = new Poll { Code = "abc12", Question = "Q?", Status = PollStatus.Open, CreatorId = creatorId };
+        var poll = new Poll { Code = "abc12", Status = PollStatus.Open, CreatorId = creatorId };
         _repo.Setup(r => r.GetByCodeAsync("abc12")).ReturnsAsync(poll);
 
         var result = await _sut.CloseAsync("abc12", creatorId);
@@ -262,7 +331,7 @@ public class PollServiceTests
         Assert.Contains("already closed", result.Error!, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── Delete (creator-only; logic ready for Phase 6) ──────────
+    // ── Delete (creator-only) ───────────────────────────────────
 
     [Fact]
     public async Task Delete_ReturnsSuccess_WhenCreator()
@@ -330,8 +399,8 @@ public class PollServiceTests
     {
         _repo.Setup(r => r.GetAllAsync(It.IsAny<int>())).ReturnsAsync(new List<Poll>
         {
-            new() { Code = "all01", Question = "Q1" },
-            new() { Code = "all02", Question = "Q2" }
+            new() { Code = "all01", Title = "Q1" },
+            new() { Code = "all02", Title = "Q2" }
         });
 
         var result = await _sut.GetAllAsync();

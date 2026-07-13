@@ -3,13 +3,26 @@ namespace VoteApi.DTOs;
 public record VoteResultsResponse
 {
     public string PollCode { get; init; } = "";
-    public string Question { get; init; } = "";
+    public string? Title { get; init; }
+    public bool IsActive { get; init; }
+
+    /// <summary>Number of distinct voters who submitted the survey.</summary>
+    public int TotalVoters { get; init; }
+
+    public List<QuestionResults> Questions { get; init; } = new();
+}
+
+/// <summary>Live results for one survey question.</summary>
+public record QuestionResults
+{
+    public Guid QuestionId { get; init; }
+    public int QuestionIndex { get; init; }
+    public string Text { get; init; } = "";
     public string Type { get; init; } = "SingleChoice";
     public int TotalVotes { get; init; }
-    public bool IsActive { get; init; }
     public List<OptionResult> Options { get; init; } = new();
 
-    /// <summary>Submitted free-text answers for OpenText polls (empty for choice/rating polls).</summary>
+    /// <summary>Submitted free-text answers for an OpenText question (empty otherwise).</summary>
     public List<TextAnswerResponse> TextAnswers { get; init; } = new();
 }
 

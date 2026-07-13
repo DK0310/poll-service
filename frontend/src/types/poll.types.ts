@@ -7,24 +7,44 @@ export interface PollOption {
 
 export type QuestionType = 'SingleChoice' | 'YesNo' | 'Rating' | 'OpenText';
 
+// One survey question within a poll.
+export interface PollQuestion {
+  id: string;
+  questionIndex: number;
+  text: string;
+  type: string; // QuestionType
+  options: PollOption[];
+}
+
 export interface PollInfo {
   code: string;
-  question: string;
-  type: string; // QuestionType
+  title: string | null; // optional survey title
   status: string; // "Open" | "Closed"
   createdAt: string; // ISO 8601
   expiresAt: string | null;
   isActive: boolean;
   creatorId: string | null; // owner id — for ownership-gated UI (analytics link, pin)
-  options: PollOption[];
+  questions: PollQuestion[];
   url: string; // "/poll/{code}"
 }
 
-export interface CreatePollData {
-  question: string;
+export interface CreateQuestionData {
+  text: string;
   type: QuestionType;
   options: string[];
+}
+
+export interface CreatePollData {
+  title?: string;
+  questions: CreateQuestionData[];
   expiryHours?: number;
+}
+
+// One answer in a batch submission.
+export interface QuestionAnswer {
+  questionId: string;
+  optionIndex: number;
+  textAnswer?: string;
 }
 
 export interface OptionResult {
@@ -41,14 +61,23 @@ export interface TextAnswer {
   votedAt: string; // ISO 8601
 }
 
-export interface VoteResults {
-  pollCode: string;
-  question: string;
+// Live results for one survey question.
+export interface QuestionResults {
+  questionId: string;
+  questionIndex: number;
+  text: string;
   type: string; // QuestionType
   totalVotes: number;
-  isActive: boolean;
   options: OptionResult[];
   textAnswers: TextAnswer[];
+}
+
+export interface VoteResults {
+  pollCode: string;
+  title: string | null;
+  isActive: boolean;
+  totalVoters: number;
+  questions: QuestionResults[];
 }
 
 // ── Auth (Identity API via Gateway) ─────────────────────────
@@ -76,17 +105,26 @@ export interface TopOption {
   voteCount: number;
 }
 
-export interface Analytics {
-  pollCode: string;
-  question: string;
+export interface QuestionAnalytics {
+  questionId: string;
+  questionIndex: number;
+  text: string;
+  type: string; // QuestionType
   totalVotes: number;
   topOption: TopOption | null;
-  peakMinute: TimeBucket | null;
-  timeline: TimeBucket[];
 }
 
-// ── Q&A (Vote API via Gateway + SignalR) ────────────────────
-export interface Question {
+export interface Analytics {
+  pollCode: string;
+  title: string | null;
+  totalVoters: number;
+  timeline: TimeBucket[];
+  peakMinute: TimeBucket | null;
+  questions: QuestionAnalytics[];
+}
+
+// ── Audience Q&A / "Ask" (Vote API via Gateway + SignalR) ────
+export interface AudienceQuestion {
   id: string;
   text: string;
   upvotes: number;

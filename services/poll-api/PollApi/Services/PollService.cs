@@ -16,32 +16,49 @@ public class PollService
 
     public async Task<Result<PollResponse>> CreateAsync(CreatePollRequest request, Guid? creatorId)
     {
-        if (string.IsNullOrWhiteSpace(request.Question))
-            return Result<PollResponse>.Failure("Question is required");
+        if (request.Questions is null || request.Questions.Count == 0)
+            return Result<PollResponse>.Failure("At least one question is required");
 
-        if (!Enum.TryParse<PollQuestionType>(request.Type, ignoreCase: true, out var type))
-            return Result<PollResponse>.Failure("Invalid question type");
+        var questions = new List<Question>();
+        for (var i = 0; i < request.Questions.Count; i++)
+        {
+            var q = request.Questions[i];
+            var label = $"Question {i + 1}";
 
-        // Options depend on the question type: SingleChoice uses the creator's options;
-        // YesNo and Rating are server-generated; OpenText has no options.
-        var optionsResult = BuildOptionTexts(type, request.Options);
-        if (!optionsResult.IsSuccess)
-            return Result<PollResponse>.Failure(optionsResult.Error!);
+            if (string.IsNullOrWhiteSpace(q.Text))
+                return Result<PollResponse>.Failure($"{label}: text is required");
+
+            if (!Enum.TryParse<PollQuestionType>(q.Type, ignoreCase: true, out var type))
+                return Result<PollResponse>.Failure($"{label}: invalid question type");
+
+            // Options depend on the question type: SingleChoice uses the creator's options;
+            // YesNo and Rating are server-generated; OpenText has no options.
+            var optionsResult = BuildOptionTexts(type, q.Options);
+            if (!optionsResult.IsSuccess)
+                return Result<PollResponse>.Failure($"{label}: {optionsResult.Error!}");
+
+            questions.Add(new Question
+            {
+                QuestionIndex = i,
+                Text = q.Text.Trim(),
+                Type = type,
+                Options = optionsResult.Value!
+                    .Select((text, j) => new PollOption { OptionIndex = j, Text = text })
+                    .ToList()
+            });
+        }
 
         var code = await GenerateUniqueCodeAsync();
         var poll = new Poll
         {
             Code = code,
-            Question = request.Question.Trim(),
-            Type = type,
+            Title = string.IsNullOrWhiteSpace(request.Title) ? null : request.Title.Trim(),
             Status = PollStatus.Open,
             CreatorId = creatorId,
             ExpiresAt = request.ExpiryHours.HasValue
                 ? DateTime.UtcNow.AddHours(request.ExpiryHours.Value)
                 : null,
-            Options = optionsResult.Value!
-                .Select((text, i) => new PollOption { OptionIndex = i, Text = text })
-                .ToList()
+            Questions = questions
         };
 
         await _repo.AddAsync(poll);

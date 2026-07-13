@@ -410,7 +410,7 @@ textarea {
   width: 34px;
   height: 34px;
   border-radius: var(--radius-sm);
-  background: var(--ink);
+  background: var(--rose); /* tangerine in both themes — matches the landing mark */
   color: #fff;
 }
 
@@ -2062,6 +2062,37 @@ main.lp {
   --muted: #a79fb8;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 18px 40px -22px rgba(0, 0, 0, 0.8);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Light theme — "Daytime broadcast" for the legacy pages (My Polls, Analytics).
+   Mirrors the Tailwind light tokens so the whole app reads as one system.
+   Neutrals go bright + near-black ink; accents are deepened from their
+   dark-tuned values (which were brightened to read on the studio black) so
+   they clear AA on a light ground. */
+:root[data-theme='light'] {
+  --bg: #f4f2fb;
+  --surface: #ffffff;
+  --surface-solid: #ffffff;
+  --surface-bd: rgba(24, 17, 43, 0.12);
+  --border: rgba(24, 17, 43, 0.12);
+  --ink: #17131f;
+  --ink-soft: #4b4459;
+  --muted: #574f68;
+
+  --rose: #e4531c; /* tangerine — deepened for light */
+  --rose-2: #ff8a5c;
+  --rose-deep: #c9410f; /* link / strong hover */
+  --blue: #0f9c8f; /* teal */
+  --violet: #6b4ce0; /* grape */
+  --teal: #0f9c8f;
+  --success: #0f9c6e;
+  --danger: #d22d2d;
+
+  --shadow: 0 1px 2px rgba(24, 17, 43, 0.05), 0 18px 40px -24px rgba(24, 17, 43, 0.16);
+  --shadow-sm: 0 1px 2px rgba(24, 17, 43, 0.06);
+  --glow: 0 8px 20px -8px rgba(228, 83, 28, 0.35);
+
+  color-scheme: light;
 }
 
 /* App-page surfaces that hardcode a light background in light mode → dark surface.

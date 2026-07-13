@@ -8,16 +8,16 @@ using VoteApi.Services;
 
 namespace VoteApi.Tests.Services;
 
-public class QuestionServiceTests
+public class AskServiceTests
 {
-    private readonly Mock<QuestionRepository> _repo;
+    private readonly Mock<AskRepository> _repo;
     private readonly Mock<PollClientService> _pollClient;
     private readonly Mock<IClientProxy> _clientProxy;
-    private readonly QuestionService _sut;
+    private readonly AskService _sut;
 
-    public QuestionServiceTests()
+    public AskServiceTests()
     {
-        _repo = new Mock<QuestionRepository>(MockBehavior.Loose, new object[] { null! });
+        _repo = new Mock<AskRepository>(MockBehavior.Loose, new object[] { null! });
         _pollClient = new Mock<PollClientService>(MockBehavior.Loose, new object[] { null! });
 
         _clientProxy = new Mock<IClientProxy>();
@@ -29,24 +29,24 @@ public class QuestionServiceTests
         // Defaults: poll exists; broadcast list query returns empty (avoids NRE in BroadcastAsync).
         _pollClient.Setup(c => c.GetPollAsync(It.IsAny<string>()))
             .ReturnsAsync(new PollInfo { Code = "p", IsActive = true });
-        _repo.Setup(r => r.GetByPollAsync(It.IsAny<string>())).ReturnsAsync(new List<Question>());
+        _repo.Setup(r => r.GetByPollAsync(It.IsAny<string>())).ReturnsAsync(new List<AudienceQuestion>());
 
-        _sut = new QuestionService(_repo.Object, _pollClient.Object, hub.Object);
+        _sut = new AskService(_repo.Object, _pollClient.Object, hub.Object);
     }
 
     [Fact]
     public async Task Submit_AddsQuestion_AndBroadcasts()
     {
-        Question? saved = null;
-        _repo.Setup(r => r.AddAsync(It.IsAny<Question>())).Callback<Question>(q => saved = q).Returns(Task.CompletedTask);
+        AudienceQuestion? saved = null;
+        _repo.Setup(r => r.AddAsync(It.IsAny<AudienceQuestion>())).Callback<AudienceQuestion>(q => saved = q).Returns(Task.CompletedTask);
 
-        var result = await _sut.SubmitAsync("p", new SubmitQuestionRequest { Text = "Why microservices?" });
+        var result = await _sut.SubmitAsync("p", new SubmitAskRequest { Text = "Why microservices?" });
 
         Assert.True(result.IsSuccess);
         Assert.Equal("Why microservices?", saved!.Text);
-        _repo.Verify(r => r.AddAsync(It.IsAny<Question>()), Times.Once);
+        _repo.Verify(r => r.AddAsync(It.IsAny<AudienceQuestion>()), Times.Once);
         _clientProxy.Verify(
-            p => p.SendCoreAsync("ReceiveQuestionsUpdate", It.IsAny<object?[]>(), It.IsAny<CancellationToken>()),
+            p => p.SendCoreAsync("ReceiveAskUpdate", It.IsAny<object?[]>(), It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -55,25 +55,25 @@ public class QuestionServiceTests
     {
         _pollClient.Setup(c => c.GetPollAsync("nope")).ReturnsAsync((PollInfo?)null);
 
-        var result = await _sut.SubmitAsync("nope", new SubmitQuestionRequest { Text = "hi" });
+        var result = await _sut.SubmitAsync("nope", new SubmitAskRequest { Text = "hi" });
 
         Assert.False(result.IsSuccess);
-        _repo.Verify(r => r.AddAsync(It.IsAny<Question>()), Times.Never);
+        _repo.Verify(r => r.AddAsync(It.IsAny<AudienceQuestion>()), Times.Never);
     }
 
     [Fact]
     public async Task Submit_ReturnsFailure_WhenTextEmpty()
     {
-        var result = await _sut.SubmitAsync("p", new SubmitQuestionRequest { Text = "   " });
+        var result = await _sut.SubmitAsync("p", new SubmitAskRequest { Text = "   " });
 
         Assert.False(result.IsSuccess);
-        _repo.Verify(r => r.AddAsync(It.IsAny<Question>()), Times.Never);
+        _repo.Verify(r => r.AddAsync(It.IsAny<AudienceQuestion>()), Times.Never);
     }
 
     [Fact]
     public async Task Upvote_IncrementsCount_AndRecordsVoter()
     {
-        var q = new Question { PollCode = "p", Text = "Q", Upvotes = 2 };
+        var q = new AudienceQuestion { PollCode = "p", Text = "Q", Upvotes = 2 };
         _repo.Setup(r => r.GetByIdAsync(q.Id)).ReturnsAsync(q);
         _repo.Setup(r => r.HasUpvotedAsync(q.Id, "voter-1")).ReturnsAsync(false);
 
@@ -88,7 +88,7 @@ public class QuestionServiceTests
     [Fact]
     public async Task Upvote_ReturnsConflict_WhenAlreadyUpvoted()
     {
-        var q = new Question { PollCode = "p", Text = "Q", Upvotes = 1 };
+        var q = new AudienceQuestion { PollCode = "p", Text = "Q", Upvotes = 1 };
         _repo.Setup(r => r.GetByIdAsync(q.Id)).ReturnsAsync(q);
         _repo.Setup(r => r.HasUpvotedAsync(q.Id, "voter-1")).ReturnsAsync(true);
 
@@ -97,13 +97,13 @@ public class QuestionServiceTests
         Assert.False(result.IsSuccess);
         Assert.Contains("already upvoted", result.Error!, StringComparison.OrdinalIgnoreCase);
         _repo.Verify(r => r.AddUpvoteAsync(It.IsAny<Guid>(), It.IsAny<string>()), Times.Never);
-        _repo.Verify(r => r.UpdateAsync(It.IsAny<Question>()), Times.Never);
+        _repo.Verify(r => r.UpdateAsync(It.IsAny<AudienceQuestion>()), Times.Never);
     }
 
     [Fact]
     public async Task Upvote_ReturnsFailure_WhenNotFound()
     {
-        _repo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync((Question?)null);
+        _repo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync((AudienceQuestion?)null);
 
         var result = await _sut.UpvoteAsync("p", Guid.NewGuid(), "voter-1");
 
@@ -113,7 +113,7 @@ public class QuestionServiceTests
     [Fact]
     public async Task TogglePin_FlipsPinnedState_WhenAdmin()
     {
-        var q = new Question { PollCode = "p", Text = "Q", IsPinned = false };
+        var q = new AudienceQuestion { PollCode = "p", Text = "Q", IsPinned = false };
         _repo.Setup(r => r.GetByIdAsync(q.Id)).ReturnsAsync(q);
 
         var result = await _sut.TogglePinAsync("p", q.Id, userId: null, isAdmin: true);
@@ -126,7 +126,7 @@ public class QuestionServiceTests
     public async Task TogglePin_Succeeds_WhenOwner()
     {
         var owner = Guid.NewGuid();
-        var q = new Question { PollCode = "p", Text = "Q", IsPinned = false };
+        var q = new AudienceQuestion { PollCode = "p", Text = "Q", IsPinned = false };
         _repo.Setup(r => r.GetByIdAsync(q.Id)).ReturnsAsync(q);
         _pollClient.Setup(c => c.GetPollAsync("p"))
             .ReturnsAsync(new PollInfo { Code = "p", IsActive = true, CreatorId = owner });
@@ -140,7 +140,7 @@ public class QuestionServiceTests
     [Fact]
     public async Task TogglePin_ReturnsForbidden_WhenNotOwnerNorAdmin()
     {
-        var q = new Question { PollCode = "p", Text = "Q", IsPinned = false };
+        var q = new AudienceQuestion { PollCode = "p", Text = "Q", IsPinned = false };
         _repo.Setup(r => r.GetByIdAsync(q.Id)).ReturnsAsync(q);
         _pollClient.Setup(c => c.GetPollAsync("p"))
             .ReturnsAsync(new PollInfo { Code = "p", IsActive = true, CreatorId = Guid.NewGuid() });
@@ -149,14 +149,14 @@ public class QuestionServiceTests
 
         Assert.False(result.IsSuccess);
         Assert.Contains("forbidden", result.Error!, StringComparison.OrdinalIgnoreCase);
-        _repo.Verify(r => r.UpdateAsync(It.IsAny<Question>()), Times.Never);
+        _repo.Verify(r => r.UpdateAsync(It.IsAny<AudienceQuestion>()), Times.Never);
     }
 
     [Fact]
     public async Task GetForPoll_ReturnsQuestions()
     {
         _repo.Setup(r => r.GetByPollAsync("p"))
-            .ReturnsAsync(new List<Question> { new() { PollCode = "p", Text = "Q1" } });
+            .ReturnsAsync(new List<AudienceQuestion> { new() { PollCode = "p", Text = "Q1" } });
 
         var result = await _sut.GetForPollAsync("p");
 

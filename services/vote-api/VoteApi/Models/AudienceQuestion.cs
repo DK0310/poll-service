@@ -1,10 +1,11 @@
 namespace VoteApi.Models;
 
 /// <summary>
-/// An audience question for a poll (anonymous Q&A). Owned by the Vote API alongside votes,
-/// since both are real-time audience interactions keyed by poll code.
+/// An audience question for a poll (anonymous Q&A / "Ask"). Owned by the Vote API alongside votes,
+/// since both are real-time audience interactions keyed by poll code. Distinct from a survey
+/// <c>Question</c> (owned by the Poll API) — this is the audience asking the host.
 /// </summary>
-public class Question
+public class AudienceQuestion
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string PollCode { get; set; } = "";

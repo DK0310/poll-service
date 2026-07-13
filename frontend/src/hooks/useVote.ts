@@ -2,24 +2,23 @@ import { useState } from 'react';
 import api, { apiErrorMessage } from '../api/api';
 import { getVoterToken } from '../auth/voter';
 import { getDisplayName, getRole } from '../auth/session';
-import type { VoteResults } from '../types/poll.types';
+import type { QuestionAnswer, VoteResults } from '../types/poll.types';
 
 export function useVote(pollCode: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
 
-  const vote = async (optionIndex: number, textAnswer?: string): Promise<VoteResults | null> => {
+  const vote = async (answers: QuestionAnswer[]): Promise<VoteResults | null> => {
     setLoading(true);
     setError(null);
     try {
       const { data } = await api.post<VoteResults>(`/polls/${pollCode}/vote`, {
-        optionIndex,
-        textAnswer,
         voterToken: getVoterToken(),
         // Display-only author label for OpenText answers (null = anonymous guest).
         authorName: getDisplayName(),
         authorRole: getRole(),
+        answers,
       });
       setHasVoted(true);
       return data;

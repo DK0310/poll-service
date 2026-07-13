@@ -15,6 +15,7 @@ record-keeping first.
 | [ISSUE-003](#issue-003--vote-page-has-no-in-page-back-return-control) | Vote page has no in-page back / return control | Frontend · navigation | Low | **Fixed** |
 | [ISSUE-004](#issue-004--landing-page-renders-dark-in-dark-mode-low-contrast) | Landing page renders dark in dark mode (low contrast) | Frontend · theming | Low | **Fixed** |
 | [ISSUE-005](#issue-005--dark-mode-form-fields-show-invisible-text-light-field--white-text) | Dark mode: form fields show invisible text (light field + white text) | Frontend · theming | Medium | **Fixed** |
+| [ISSUE-006](#issue-006--full-stack-cold-start-breaks-the-warm-up-ping-register--login--my-polls-fail) | Full-stack cold start breaks the warm-up ping (register / login / My Polls fail) | Frontend + Gateway · Render free tier | Medium | Open |
 
 ---
 
@@ -287,3 +288,77 @@ automatically, so the landing-stays-light intent holds for free. File:
 [`index.css`](frontend/src/index.css). **Verified:** `npm run lint` clean + `vite build` green —
 Login/Register inputs and the OpenText `.text-answer` box are now legible in dark mode. Frontend-only;
 no ARCHITECTURE change.
+
+---
+
+## ISSUE-006 — Full-stack cold start breaks the warm-up ping (register / login / My Polls fail)
+
+| Field | Value |
+|---|---|
+| **Area** | Frontend (`warmup.ts`) + Gateway — Render free tier, multi-service cold start |
+| **Severity** | Medium (blocks register/login/My Polls until manually worked around; only hits after a long full-stack idle period) |
+| **Status** | Open |
+| **Reported** | 2026-07-13 |
+| **Environment** | Production (Render, 5 free-tier services: frontend, gateway, identity-api, poll-api, vote-api) |
+
+### Summary
+After the whole stack (all 5 Render services **and** the Azure SQL databases) sat idle long enough for
+everything to go cold simultaneously, visiting the frontend and waiting was **not** enough to recover —
+unlike the normal case where a single cold service wakes fine within the page-load wait. Register calls
+returned `429`, and after registration/login succeeded, **My Polls** showed "Failed to load your polls".
+
+### Steps to reproduce
+1. Let the entire stack go idle long enough that the Azure SQL databases auto-pause (a much longer
+   window than the ~15 min Render free-tier service sleep) — so frontend, gateway, identity-api,
+   poll-api, and vote-api are *all* asleep at once, not just one.
+2. Visit the frontend and immediately try to **Register** or **Log in**.
+3. Observe `429 Too Many Requests` on `/api/auth/register` (and on the `warmup` pings).
+4. After eventually registering/logging in, open **My Polls**.
+
+### Expected
+- `warmBackend()` in [`warmup.ts`](frontend/src/api/warmup.ts) fires on page load and the user's first
+  real action should "just work" once the page has been open a little while, per the original warm-up
+  design (commit `d50290b`).
+
+### Actual
+- `POST /api/auth/register` returned `429` even after waiting past the normal ~50s cold-boot window.
+- Hitting each backend directly confirmed the real problem: **identity-api**, **gateway**, and
+  **poll-api** were each independently cold and had to be woken one at a time (direct requests to
+  `pollbuilder-identity-api-latest`, `pollbuilder-gateway-latest`, and
+  `pollbuilder-poll-api-latest-1` — note the `-1` suffix on that last one — each showed Render's own
+  "Application loading" cold-start page).
+- Once identity-api and gateway were warm, register/login worked. Once poll-api and vote-api were also
+  warm, **My Polls** loaded correctly.
+
+### Notes / areas to investigate (when fixing — not yet confirmed)
+- Root cause: `warmBackend()` fires 3 fire-and-forget pings (`/auth/warmup`, `/polls/warmup`,
+  `/polls/warmup/results`) straight through the frontend's nginx proxy to the **gateway**
+  ([`nginx.conf`](frontend/nginx.conf)). If the **gateway itself** is also cold, those pings can't reach
+  identity-api/poll-api/vote-api until the gateway finishes its own ~50s boot first — so instead of every
+  service waking in parallel (~50s total), the gateway's boot is serialized in front of each downstream
+  service's boot (100s+), while Render's edge returns `429`s on the retries piling up in between.
+- This only surfaces when **every** layer is cold at once, which requires an idle window long enough for
+  the Azure SQL DB to auto-pause too — much rarer than a single service napping after 15 minutes, hence
+  not caught earlier.
+- Possible fix direction: have `warmBackend()` wake the gateway first and confirm it's live (poll until a
+  non-429/503 response) before firing the downstream service pings, or expose one combined
+  gateway-side health-check that transitively warms its clusters. Alternatively, moving off the free tier
+  removes the sleep behavior entirely.
+
+---
+
+## Design notes — multi-question survey refactor (2026-07-13)
+
+Not defects — assumptions worth recording after the Poll → Question → Option refactor (the survey
+model where a poll has many questions, each with its own type and options):
+
+- **No survey-edit endpoint → `QuestionId` is immutable.** A poll's questions are set at creation and
+  never edited or re-ordered (there is no update endpoint). The Vote API stores `Vote.QuestionId` and
+  trusts that the id it learned from the Poll API stays valid for the poll's lifetime. If a future
+  edit/replace-questions feature is added, it must not recycle or renumber question ids under existing
+  votes (delete-and-recreate the poll instead, or migrate votes).
+- **Batch voting requires an answer to every question.** A submission must answer **all** of the poll's
+  questions or it is rejected (`"Please answer every question"`); there is no partial/save-progress
+  submission. This keeps `TotalVoters` equal to each question's vote count and matches the
+  one-submission-per-voter dedup. Relaxing to partial answers would require rethinking the
+  `TotalVoters` metric and the `(PollCode, QuestionId, VoterToken)` uniqueness.
