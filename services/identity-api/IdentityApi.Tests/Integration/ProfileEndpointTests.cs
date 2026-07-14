@@ -83,12 +83,29 @@ public class ProfileEndpointTests : IClassFixture<CustomWebAppFactory>
     {
         var (email, userId) = await CreateUser("oldpass1");
 
+        // Request the emailed OTP, then change with current password + code.
+        var codeReq = await _client.SendAsync(As(userId, HttpMethod.Post, "/api/auth/change-password/request-code"));
+        Assert.Equal(HttpStatusCode.OK, codeReq.StatusCode);
+        var code = _factory.Email.CodeFor(email);
+
         var req = As(userId, HttpMethod.Post, "/api/auth/change-password");
-        req.Content = JsonContent.Create(new { currentPassword = "oldpass1", newPassword = "brandnew1" });
+        req.Content = JsonContent.Create(new { currentPassword = "oldpass1", newPassword = "brandnew1", code });
         var res = await _client.SendAsync(req);
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
 
         var login = await _client.PostAsJsonAsync("/api/auth/login", new { email, password = "brandnew1" });
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+    }
+
+    [Fact]
+    public async Task ChangePassword_Fails_WithoutCode()
+    {
+        var (_, userId) = await CreateUser("oldpass1");
+
+        var req = As(userId, HttpMethod.Post, "/api/auth/change-password");
+        req.Content = JsonContent.Create(new { currentPassword = "oldpass1", newPassword = "brandnew1" });
+        var res = await _client.SendAsync(req);
+
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
     }
 }

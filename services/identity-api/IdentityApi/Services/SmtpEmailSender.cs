@@ -38,12 +38,17 @@ public class SmtpEmailSender : IEmailSender
         message.Subject = subject;
         message.Body = new TextPart("plain") { Text = body };
 
-        using var client = new SmtpClient();
+        // Smtp:Debug=true dumps the full SMTP conversation (incl. Gmail's queue-id) to stderr.
+        var debug = string.Equals(_config["Smtp:Debug"], "true", StringComparison.OrdinalIgnoreCase);
+        using var client = debug
+            ? new SmtpClient(new MailKit.ProtocolLogger(Console.OpenStandardError()))
+            : new SmtpClient();
         await client.ConnectAsync(host, port, SecureSocketOptions.StartTls);
         await client.AuthenticateAsync(user, password);
-        await client.SendAsync(message);
+        var response = await client.SendAsync(message);
         await client.DisconnectAsync(true);
 
-        _logger.LogInformation("Sent '{Subject}' email to {To}", subject, toEmail);
+        _logger.LogInformation("Sent '{Subject}' email to {To} — server response: {Response}",
+            subject, toEmail, response);
     }
 }

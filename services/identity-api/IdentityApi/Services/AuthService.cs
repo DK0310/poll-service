@@ -170,7 +170,23 @@ public class AuthService
         return Result<bool>.Success(true);
     }
 
-    // ── Change password (from the profile; verifies the current one when set) ──
+    // ── Request an OTP to change the current password (authenticated; sent to the user's own email) ──
+    public async Task<Result<bool>> RequestPasswordChangeCodeAsync(Guid userId)
+    {
+        var user = await _db.Users.FindAsync(userId);
+        if (user is null)
+            return Result<bool>.Failure("User not found");
+        // Only a real change needs a code; a first-time set (no password yet) does not.
+        if (user.PasswordHash is null)
+            return Result<bool>.Failure("No password set to change");
+
+        if (!await OnCooldownAsync(user.Email, OtpPurpose.PasswordChange))
+            await IssueAndSendCodeAsync(user.Email, OtpPurpose.PasswordChange);
+
+        return Result<bool>.Success(true);
+    }
+
+    // ── Change password (from the profile; verifies the current one + an emailed OTP when set) ──
     public async Task<Result<bool>> ChangePasswordAsync(Guid userId, ChangePasswordRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < MinPasswordLength)
@@ -180,10 +196,17 @@ public class AuthService
         if (user is null)
             return Result<bool>.Failure("User not found");
 
-        // When a password already exists, the current one must match; otherwise this is a first-time set.
-        if (user.PasswordHash is not null &&
-            !BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
-            return Result<bool>.Failure("Current password is incorrect");
+        // When a password already exists, the current one must match AND an emailed OTP must be
+        // consumed. Otherwise this is a first-time set (Google account) — no current, no code.
+        if (user.PasswordHash is not null)
+        {
+            if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+                return Result<bool>.Failure("Current password is incorrect");
+
+            var code = await ConsumeCodeAsync(user.Email, OtpPurpose.PasswordChange, request.Code);
+            if (!code.IsSuccess)
+                return Result<bool>.Failure(code.Error!);
+        }
 
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
         await _db.SaveChangesAsync();

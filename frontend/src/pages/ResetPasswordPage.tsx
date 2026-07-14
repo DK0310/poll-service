@@ -36,6 +36,9 @@ export function ResetPasswordPage() {
           </span>
           <h1 className="font-display text-2xl font-bold tracking-tight text-fg">Choose a new password</h1>
           <p className="mt-1 text-fg-muted">Enter the code we emailed you.</p>
+          <p className="mt-2 text-sm text-fg-faint">
+            Can’t find it? Check your <span className="text-fg-muted">spam or junk</span> folder.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">

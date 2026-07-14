@@ -12,7 +12,14 @@ builder.Services.AddDbContext<IdentityDbContext>(opt =>
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<ProfileService>();
-builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+// Use real Gmail SMTP only when credentials are actually configured; otherwise fall back to a
+// logging sender so the OTP flows work (and print the code) in local dev without secrets.
+const string SecretPlaceholder = "__SET_VIA_USER_SECRETS_OR_ENV__";
+static bool IsConfigured(string? v) => !string.IsNullOrWhiteSpace(v) && v != SecretPlaceholder;
+if (IsConfigured(builder.Configuration["Smtp:User"]) && IsConfigured(builder.Configuration["Smtp:Password"]))
+    builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+else
+    builder.Services.AddSingleton<IEmailSender, LogEmailSender>();
 builder.Services.AddSingleton<IGoogleTokenVerifier, GoogleTokenVerifier>();
 
 builder.Services.AddControllers();

@@ -347,13 +347,15 @@ public class AuthServiceTests
     // ── Change password (from profile) ──────────────────────────
 
     [Fact]
-    public async Task ChangePassword_Succeeds_WithCorrectCurrent()
+    public async Task ChangePassword_Succeeds_WithCorrectCurrent_AndValidCode()
     {
         var (sut, db, email) = CreateSutWithDb();
         await RegisterVerified(sut, email, "cp@b.com", "oldpass1");
         var id = (await db.Users.SingleAsync()).Id;
 
-        var result = await sut.ChangePasswordAsync(id, new ChangePasswordRequest { CurrentPassword = "oldpass1", NewPassword = "newpass1" });
+        await sut.RequestPasswordChangeCodeAsync(id);
+        var code = email.CodeFor("cp@b.com");
+        var result = await sut.ChangePasswordAsync(id, new ChangePasswordRequest { CurrentPassword = "oldpass1", NewPassword = "newpass1", Code = code });
 
         Assert.True(result.IsSuccess);
         Assert.True((await sut.LoginAsync(new LoginRequest { Email = "cp@b.com", Password = "newpass1" })).IsSuccess);
@@ -366,19 +368,59 @@ public class AuthServiceTests
         await RegisterVerified(sut, email, "cp2@b.com", "oldpass1");
         var id = (await db.Users.SingleAsync()).Id;
 
-        var result = await sut.ChangePasswordAsync(id, new ChangePasswordRequest { CurrentPassword = "wrongpass", NewPassword = "newpass1" });
+        await sut.RequestPasswordChangeCodeAsync(id);
+        var code = email.CodeFor("cp2@b.com");
+        var result = await sut.ChangePasswordAsync(id, new ChangePasswordRequest { CurrentPassword = "wrongpass", NewPassword = "newpass1", Code = code });
 
         Assert.False(result.IsSuccess);
     }
 
     [Fact]
-    public async Task ChangePassword_SetsFirstPassword_ForGoogleUser_WithoutCurrent()
+    public async Task ChangePassword_Fails_WithoutCode_WhenPasswordSet()
+    {
+        var (sut, db, email) = CreateSutWithDb();
+        await RegisterVerified(sut, email, "cp2b@b.com", "oldpass1");
+        var id = (await db.Users.SingleAsync()).Id;
+
+        var result = await sut.ChangePasswordAsync(id, new ChangePasswordRequest { CurrentPassword = "oldpass1", NewPassword = "newpass1", Code = "" });
+
+        Assert.False(result.IsSuccess);
+        Assert.True((await sut.LoginAsync(new LoginRequest { Email = "cp2b@b.com", Password = "oldpass1" })).IsSuccess); // unchanged
+    }
+
+    [Fact]
+    public async Task ChangePassword_Fails_WithWrongCode()
+    {
+        var (sut, db, email) = CreateSutWithDb();
+        await RegisterVerified(sut, email, "cp2c@b.com", "oldpass1");
+        var id = (await db.Users.SingleAsync()).Id;
+
+        await sut.RequestPasswordChangeCodeAsync(id);
+        var result = await sut.ChangePasswordAsync(id, new ChangePasswordRequest { CurrentPassword = "oldpass1", NewPassword = "newpass1", Code = "000000" });
+
+        Assert.False(result.IsSuccess);
+    }
+
+    [Fact]
+    public async Task RequestPasswordChangeCode_Fails_ForGoogleOnlyAccount()
+    {
+        var (sut, db, _) = CreateSutWithDb();
+        await sut.GoogleAsync(new GoogleLoginRequest { IdToken = "valid:cpg@b.com" });
+        var id = (await db.Users.SingleAsync()).Id;
+
+        var result = await sut.RequestPasswordChangeCodeAsync(id);
+
+        Assert.False(result.IsSuccess); // no password to change → nothing to verify
+    }
+
+    [Fact]
+    public async Task ChangePassword_SetsFirstPassword_ForGoogleUser_WithoutCurrentOrCode()
     {
         var (sut, db, _) = CreateSutWithDb();
         await sut.GoogleAsync(new GoogleLoginRequest { IdToken = "valid:cp3@b.com" });
         var id = (await db.Users.SingleAsync()).Id;
 
-        var result = await sut.ChangePasswordAsync(id, new ChangePasswordRequest { CurrentPassword = "", NewPassword = "newpass1" });
+        var result = await sut.ChangePasswordAsync(id, new ChangePasswordRequest { CurrentPassword = "", NewPassword = "newpass1", Code = "" });
 
         Assert.True(result.IsSuccess);
         Assert.True((await sut.LoginAsync(new LoginRequest { Email = "cp3@b.com", Password = "newpass1" })).IsSuccess);

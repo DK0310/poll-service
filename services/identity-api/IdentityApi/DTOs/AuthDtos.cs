@@ -97,6 +97,9 @@ public record ChangePasswordRequest
 
     [Required]
     public string NewPassword { get; init; } = "";
+
+    // Emailed OTP — required when changing an existing password; ignored on a first-time set.
+    public string Code { get; init; } = "";
 }
 
 // ── Profile ─────────────────────────────────────────────────

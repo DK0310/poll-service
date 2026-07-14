@@ -499,7 +499,7 @@ A **unique index on `(AudienceQuestionId, VoterKey)`** enforces one upvote per p
 | Id | Guid | PK, `NEWID()` default |
 | Email | string | Normalized (trim+lower), max 256; indexed with `Purpose` |
 | CodeHash | string | **BCrypt hash** of the 6-digit code (never stored in plaintext) |
-| Purpose | string | `EmailVerification` or `PasswordReset`, max 40 |
+| Purpose | string | `EmailVerification`, `PasswordReset`, or `PasswordChange`, max 40 |
 | ExpiresAt | DateTime | UTC; codes live 10 minutes |
 | ConsumedAt | DateTime? | Single-use marker (null = unused) |
 | CreatedAt | DateTime | UTC, `GETUTCDATE()` default; also drives a 60s resend cooldown |
@@ -571,7 +571,8 @@ All external endpoints are reached **through the Gateway**.
 | POST | `/api/auth/login` | No | Login, receive JWT. Blocked until email verified; rejected for Google-only (no-password) accounts |
 | POST | `/api/auth/google` | No | `{ idToken }` → verifies the Google ID token, find-or-creates the user, receive `{ token, hasPassword }` |
 | POST | `/api/auth/set-password` | **Required** | `{ password }` → sets a password for a Google account that has none (enables email+password login). `CreatorId` from `X-User-Id` |
-| POST | `/api/auth/change-password` | **Required** | `{ currentPassword, newPassword }` → verifies the current password (or first-time set when none) from the profile |
+| POST | `/api/auth/change-password/request-code` | **Required** | Emails a `PasswordChange` OTP to the caller's own address (only when a password exists; first-time set needs no code) |
+| POST | `/api/auth/change-password` | **Required** | `{ currentPassword, newPassword, code }` → verifies the current password **and** an emailed OTP (or first-time set with no current/code when none) from the profile |
 | POST | `/api/auth/forgot-password` | No | `{ email }` → emails a reset OTP. **Always 200** (no account enumeration) |
 | POST | `/api/auth/reset-password` | No | `{ email, code, newPassword }` → validates the OTP, sets the new password |
 | GET | `/api/users/me` | **Required** | Current user's profile (username, bio, avatar, role, hasPassword, hasGoogle) |
@@ -590,6 +591,7 @@ A **gateway-wide YARP code transform** (`AddRequestTransform`) sets the `X-User-
 |---|---|---|---|---|---|
 | 0 | auth-set-password | `/api/auth/set-password` (POST) | identity-api | **authenticated** | ← `sub`+`role` |
 | 0 | auth-change-password | `/api/auth/change-password` (POST) | identity-api | **authenticated** | ← `sub`+`role` |
+| 0 | auth-change-password-code | `/api/auth/change-password/request-code` (POST) | identity-api | **authenticated** | ← `sub`+`role` |
 | 0 | users-me | `/api/users/me` (GET, PUT) | identity-api | **authenticated** | ← `sub`+`role` |
 | 0 | me-votes | `/api/me/votes` (GET) | vote-api | **authenticated** | ← `sub`+`role` |
 | 1 | vote-submit | `/api/polls/{code}/vote` | vote-api | No | — |
@@ -874,7 +876,7 @@ The shared chrome (auth-aware nav + footer) lives in `App.tsx`; the landing rout
 | **JWT validated at Gateway only** | Centralized auth; services trust the Gateway's `X-User-Id`/`X-User-Role` headers |
 | **Role in the JWT `role` claim → `X-User-Role` header** | Same proven path as `sub`→`X-User-Id`; coarse gating at the Gateway, fine owner/admin checks in services (defense-in-depth) |
 | **Google sign-in via ID-token verification (not ASP.NET's cookie/redirect handler)** | The frontend gets a Google ID token (`@react-oauth/google`) and posts it to `/api/auth/google`; the Identity API verifies it (`Google.Apis.Auth`) and mints the **same** app JWT. Keeps the stateless-JWT-behind-a-gateway model intact — no server-side session, cookies, or correlation state to route through YARP |
-| **Email OTP hashed + single-use + short-lived** (`VerificationCodes`) | 6-digit codes are BCrypt-hashed (like passwords), expire in 10 min, are consumed on use, and rate-limited by a 60s resend cooldown. Used for verify-on-signup and password reset; sent via Gmail SMTP (MailKit) behind an `IEmailSender` abstraction so tests never hit a real server |
+| **Email OTP hashed + single-use + short-lived** (`VerificationCodes`) | 6-digit codes are BCrypt-hashed (like passwords), expire in 10 min, are consumed on use, and rate-limited by a 60s resend cooldown. Used for verify-on-signup, password reset, **and profile change-password** (`PasswordChange` — the profile change requires the current password **and** an emailed OTP; a first-time set on a Google account needs neither). Sent via Gmail SMTP (MailKit) behind an `IEmailSender` abstraction so tests never hit a real server; when `Smtp:User`/`Smtp:Password` are unset, a `LogEmailSender` fallback logs the code instead so the flows work in local dev without secrets |
 | **Nullable `PasswordHash` + `GoogleId` on `User` (blended accounts)** | A user can have a password, a Google link, or both. Google sign-in goes straight into the app (no forced steps); a password is added later from the **Profile** page (`/api/auth/change-password`, which first-time-sets when none exists). Login rejects a password attempt on a Google-only account and points the user to Google or password reset |
 | **Avatar as a base64 data URL in the DB (no blob store)** | The client crops+downscales the chosen image to 256px on a `<canvas>` and stores it as a `data:` URL in `Users.AvatarUrl`. Self-contained → **deployment-safe** (no file server, object storage, or CORS to break in production); the server caps the size to keep rows/payloads small |
 | **Per-account vote history via nullable `Vote.UserId`** | Votes stay anonymous by default (browser token), but when a logged-in user votes the Gateway's `X-User-Id` is stamped onto each row. `GET /api/me/votes` groups by poll and enriches titles/state via the existing Poll API client. Votes cast while logged out remain anonymous (not retroactively linked) |

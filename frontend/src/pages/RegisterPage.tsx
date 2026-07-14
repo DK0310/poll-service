@@ -45,6 +45,9 @@ export function RegisterPage() {
             <p className="mt-1 text-fg-muted">
               We sent a 6-digit code to <span className="text-fg">{email}</span>.
             </p>
+            <p className="mt-2 text-sm text-fg-faint">
+              Can’t find it? Check your <span className="text-fg-muted">spam or junk</span> folder.
+            </p>
           </div>
 
           <form onSubmit={handleVerify} className="flex flex-col gap-4">

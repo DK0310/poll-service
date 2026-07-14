@@ -49,10 +49,25 @@ export function useProfile() {
     }
   };
 
-  // Handles both first-time set (Google account, empty current) and a real change.
-  const changePassword = async (currentPassword: string, newPassword: string): Promise<boolean> => {
+  // Emails a PasswordChange OTP to the current user (only needed for a real change).
+  const requestChangeCode = async (): Promise<boolean> => {
     try {
-      await api.post('/auth/change-password', { currentPassword, newPassword });
+      await api.post('/auth/change-password/request-code');
+      return true;
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not send the code'));
+      return false;
+    }
+  };
+
+  // Handles both first-time set (Google account, empty current + code) and a real change (code required).
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string,
+    code: string,
+  ): Promise<boolean> => {
+    try {
+      await api.post('/auth/change-password', { currentPassword, newPassword, code });
       reload(); // refresh hasPassword
       return true;
     } catch (err) {
@@ -61,5 +76,5 @@ export function useProfile() {
     }
   };
 
-  return { profile, loading, saving, error, setError, save, changePassword, reload };
+  return { profile, loading, saving, error, setError, save, requestChangeCode, changePassword, reload };
 }

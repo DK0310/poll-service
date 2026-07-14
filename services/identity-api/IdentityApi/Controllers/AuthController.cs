@@ -79,7 +79,22 @@ public class AuthController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
-    // ── POST /api/auth/change-password  { currentPassword, newPassword } ─
+    // ── POST /api/auth/change-password/request-code ─────────────
+    // Authenticated at the Gateway; emails a PasswordChange OTP to the caller's own address.
+    [HttpPost("change-password/request-code")]
+    public async Task<IActionResult> RequestChangePasswordCode()
+    {
+        var userId = CallerId();
+        if (userId is null)
+            return Unauthorized(new { error = "Not authenticated" });
+
+        var result = await _service.RequestPasswordChangeCodeAsync(userId.Value);
+        return result.IsSuccess
+            ? Ok()
+            : BadRequest(new { error = result.Error });
+    }
+
+    // ── POST /api/auth/change-password  { currentPassword, newPassword, code } ─
     // Authenticated at the Gateway; we trust the X-User-Id header it sets.
     [HttpPost("change-password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)

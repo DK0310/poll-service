@@ -11,7 +11,7 @@ import { fileToAvatarDataUrl } from '../utils/avatar';
 import type { Profile } from '../types/poll.types';
 
 export function ProfilePage() {
-  const { profile, loading, error, save, changePassword, setError } = useProfile();
+  const { profile, loading, error, save, requestChangeCode, changePassword, setError } = useProfile();
 
   if (loading) return <ProfileSkeleton />;
   if (!profile) {
@@ -33,7 +33,12 @@ export function ProfilePage() {
         <IdentityCard profile={profile} onAvatar={(avatarUrl) => save({ avatarUrl })} />
         <div className="flex min-w-0 flex-col gap-6">
           <ProfileDetails profile={profile} onSave={save} />
-          <SecuritySection profile={profile} onChangePassword={changePassword} setError={setError} />
+          <SecuritySection
+            profile={profile}
+            onRequestCode={requestChangeCode}
+            onChangePassword={changePassword}
+            setError={setError}
+          />
           <VoteHistorySection />
         </div>
       </div>
@@ -214,20 +219,39 @@ function ProfileDetails({ profile, onSave }: { profile: Profile; onSave: (u: { u
 
 // ── Security (set / change password) ──────────────────────────
 function SecuritySection({
-  profile, onChangePassword, setError,
+  profile, onRequestCode, onChangePassword, setError,
 }: {
   profile: Profile;
-  onChangePassword: (current: string, next: string) => Promise<boolean>;
+  onRequestCode: () => Promise<boolean>;
+  onChangePassword: (current: string, next: string, code: string) => Promise<boolean>;
   setError: (e: string | null) => void;
 }) {
   const { toast } = useToast();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [code, setCode] = useState('');
   const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const isSet = !profile.hasPassword; // first-time set vs change
+  const isSet = !profile.hasPassword; // first-time set (Google) vs change
+
+  // A real change needs an emailed OTP; a first-time set does not.
+  const sendCode = async () => {
+    setLocalError(null);
+    setError(null);
+    setSending(true);
+    const ok = await onRequestCode();
+    setSending(false);
+    if (ok) {
+      setCodeSent(true);
+      toast(`Verification code sent to ${profile.email}.`);
+    } else {
+      setLocalError('Could not send the code. Please try again.');
+    }
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -235,15 +259,20 @@ function SecuritySection({
     setError(null);
     if (next.length < 6) return setLocalError('New password must be at least 6 characters.');
     if (next !== confirm) return setLocalError('Passwords don’t match.');
+    if (!isSet && code.length < 6) return setLocalError('Enter the 6-digit code we emailed you.');
 
     setSaving(true);
-    const ok = await onChangePassword(isSet ? '' : current, next);
+    const ok = await onChangePassword(isSet ? '' : current, next, isSet ? '' : code);
     setSaving(false);
     if (ok) {
       toast(isSet ? 'Password set.' : 'Password changed.');
-      setCurrent(''); setNext(''); setConfirm('');
+      setCurrent(''); setNext(''); setConfirm(''); setCode(''); setCodeSent(false);
     } else {
-      setLocalError('Could not update your password. Check your current password.');
+      setLocalError(
+        isSet
+          ? 'Could not set your password.'
+          : 'Could not change your password. Check your current password and code.',
+      );
     }
   };
 
@@ -256,7 +285,7 @@ function SecuritySection({
       <p className="mb-5 text-sm text-fg-muted">
         {isSet
           ? 'You sign in with Google. Add a password to also sign in with email.'
-          : 'Enter your current password, then choose a new one.'}
+          : 'Enter your current password, verify with the code we email you, then choose a new one.'}
       </p>
       <form onSubmit={submit} className="flex flex-col gap-4">
         {!isSet && (
@@ -266,6 +295,32 @@ function SecuritySection({
               id="current" type="password" className="board-input" autoComplete="current-password"
               value={current} onChange={(e) => setCurrent(e.target.value)} disabled={saving} required
             />
+          </div>
+        )}
+        {!isSet && (
+          <div>
+            <label htmlFor="code" className="board-label">Verification code</label>
+            <div className="flex gap-2">
+              <input
+                id="code" inputMode="numeric" autoComplete="one-time-code"
+                className="board-input tracking-[0.4em]"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                maxLength={6} placeholder="000000" disabled={saving || !codeSent}
+              />
+              <button
+                type="button" className="board-btn-outline shrink-0"
+                onClick={sendCode} disabled={sending || saving}
+              >
+                {sending && <Loader2 size={16} className="board-spin" aria-hidden="true" />}
+                {sending ? 'Sending…' : codeSent ? 'Resend code' : 'Send code'}
+              </button>
+            </div>
+            {codeSent && (
+              <p className="mt-1 text-xs text-fg-faint">
+                Code sent to {profile.email}. It expires in 10 minutes. Can’t find it? Check your spam or junk folder.
+              </p>
+            )}
           </div>
         )}
         <div>
@@ -286,7 +341,7 @@ function SecuritySection({
         </div>
         {localError && <p className="text-sm text-danger" role="alert">{localError}</p>}
         <div className="flex justify-end">
-          <button type="submit" className="board-btn" disabled={saving}>
+          <button type="submit" className="board-btn" disabled={saving || (!isSet && !codeSent)}>
             {saving && <Loader2 size={18} className="board-spin" aria-hidden="true" />}
             {saving ? 'Saving…' : isSet ? 'Set password' : 'Change password'}
           </button>
