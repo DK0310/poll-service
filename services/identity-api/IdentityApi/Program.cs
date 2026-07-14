@@ -11,6 +11,9 @@ builder.Services.AddDbContext<IdentityDbContext>(opt =>
 
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AdminService>();
+builder.Services.AddScoped<ProfileService>();
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+builder.Services.AddSingleton<IGoogleTokenVerifier, GoogleTokenVerifier>();
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();

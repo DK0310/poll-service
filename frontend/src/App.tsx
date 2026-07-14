@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter, NavLink, Link, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Vote, LogOut, ShieldCheck } from 'lucide-react';
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import { Vote, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 import { HomePage } from './pages/HomePage';
 import { CreatePollPage } from './pages/CreatePollPage';
 import { VotePage } from './pages/VotePage';
@@ -10,11 +11,15 @@ import { MyPollsPage } from './pages/MyPollsPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { RequireAuth } from './components/RequireAuth';
 import { RequireAdmin } from './components/RequireAdmin';
 import { useAuthStatus } from './hooks/useAuthStatus';
 import { warmBackend } from './api/warmup';
 import { clearToken } from './auth/session';
+import { googleClientId } from './auth/google';
 import { ToastProvider } from './components/Toast';
 import { ThemeProvider } from './hooks/useTheme';
 import { ThemeToggle } from './components/ThemeToggle';
@@ -49,6 +54,10 @@ function Nav() {
             <>
               <NavLink to="/my-polls" className={navLinkClass}>
                 My Polls
+              </NavLink>
+              <NavLink to="/profile" className={navLinkClass}>
+                <UserRound size={15} strokeWidth={2.25} aria-hidden="true" />
+                Profile
               </NavLink>
               {admin && (
                 <NavLink to="/admin" className={navLinkClass}>
@@ -115,6 +124,10 @@ function BoardNav() {
             <>
               <NavLink to="/my-polls" className={boardNavLink}>
                 My Polls
+              </NavLink>
+              <NavLink to="/profile" className={boardNavLink}>
+                <UserRound size={15} strokeWidth={2.25} aria-hidden="true" />
+                Profile
               </NavLink>
               {admin && (
                 <NavLink to="/admin" className={boardNavLink}>
@@ -299,6 +312,16 @@ function Layout() {
           />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route
+            path="/profile"
+            element={
+              <RequireAuth>
+                <ProfilePage />
+              </RequireAuth>
+            }
+          />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
@@ -313,7 +336,7 @@ export default function App() {
     warmBackend();
   }, []);
 
-  return (
+  const tree = (
     <BrowserRouter>
       <ThemeProvider>
         <ToastProvider>
@@ -321,5 +344,12 @@ export default function App() {
         </ToastProvider>
       </ThemeProvider>
     </BrowserRouter>
+  );
+
+  // Only mount the Google provider when a client ID is configured (social login stays optional).
+  return googleClientId ? (
+    <GoogleOAuthProvider clientId={googleClientId}>{tree}</GoogleOAuthProvider>
+  ) : (
+    tree
   );
 }

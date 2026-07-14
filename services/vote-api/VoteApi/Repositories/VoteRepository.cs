@@ -44,6 +44,21 @@ public class VoteRepository
             .Select(g => g.Min(v => v.VotedAt))
             .ToListAsync();
 
+    /// <summary>Distinct polls a logged-in user has voted on, most-recent submission first (capped).</summary>
+    public virtual async Task<List<VotedPoll>> GetVotedPollsAsync(Guid userId, int limit = 50)
+        => await _db.Votes
+            .Where(v => v.UserId == userId)
+            .GroupBy(v => v.PollCode)
+            .Select(g => new VotedPoll
+            {
+                PollCode = g.Key,
+                AnswerCount = g.Count(),
+                VotedAt = g.Max(v => v.VotedAt)
+            })
+            .OrderByDescending(p => p.VotedAt)
+            .Take(limit)
+            .ToListAsync();
+
     /// <summary>Free-text answers (with author info + owning question) for the poll, oldest first.</summary>
     public virtual async Task<List<QuestionTextAnswer>> GetTextAnswersAsync(string pollCode)
         => await _db.Votes
@@ -74,4 +89,11 @@ public class QuestionTextAnswer
 {
     public Guid QuestionId { get; set; }
     public TextAnswerResponse Answer { get; set; } = new();
+}
+
+public class VotedPoll
+{
+    public string PollCode { get; set; } = "";
+    public int AnswerCount { get; set; }
+    public DateTime VotedAt { get; set; }
 }

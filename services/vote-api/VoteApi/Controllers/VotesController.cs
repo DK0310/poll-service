@@ -15,7 +15,12 @@ public class VotesController : ControllerBase
     [HttpPost("{code}/vote")]
     public async Task<IActionResult> Vote(string code, [FromBody] VoteRequest request)
     {
-        var result = await _service.SubmitVoteAsync(code, request);
+        // Public route, but the Gateway forwards X-User-Id when a valid token is present —
+        // captured so a logged-in voter's submission shows up in their vote history.
+        var userId = Request.Headers.TryGetValue("X-User-Id", out var v) && Guid.TryParse(v.ToString(), out var id)
+            ? (Guid?)id
+            : null;
+        var result = await _service.SubmitVoteAsync(code, request, userId);
         if (result.IsSuccess)
             return Ok(result.Value);
 

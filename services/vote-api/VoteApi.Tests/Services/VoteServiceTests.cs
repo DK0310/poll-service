@@ -124,6 +124,44 @@ public class VoteServiceTests
         Assert.Equal(Q1, vote.QuestionId);
         Assert.Equal(1, vote.OptionIndex);
         Assert.Equal("tok", vote.VoterToken);
+        Assert.Null(vote.UserId);   // anonymous by default
+    }
+
+    [Fact]
+    public async Task SubmitVote_StampsUserId_WhenLoggedIn()
+    {
+        _pollClient.Setup(c => c.GetPollAsync("abc12")).ReturnsAsync(ActivePoll());
+        List<Vote>? saved = null;
+        _repo.Setup(r => r.AddRangeAsync(It.IsAny<IEnumerable<Vote>>()))
+            .Callback<IEnumerable<Vote>>(v => saved = v.ToList()).Returns(Task.CompletedTask);
+        var userId = Guid.NewGuid();
+
+        await _sut.SubmitVoteAsync("abc12", Batch(Q1, 1, "tok"), userId);
+
+        Assert.Equal(userId, Assert.Single(saved!).UserId);
+    }
+
+    // ── Vote history ────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetVoteHistory_EnrichesWithTitle_AndSkipsDeletedPolls()
+    {
+        var userId = Guid.NewGuid();
+        _repo.Setup(r => r.GetVotedPollsAsync(userId, It.IsAny<int>())).ReturnsAsync(new List<VotedPoll>
+        {
+            new() { PollCode = "live1", AnswerCount = 2, VotedAt = DateTime.UtcNow },
+            new() { PollCode = "gone1", AnswerCount = 1, VotedAt = DateTime.UtcNow.AddMinutes(-5) }
+        });
+        _pollClient.Setup(c => c.GetPollAsync("live1")).ReturnsAsync(ActivePoll("live1"));
+        _pollClient.Setup(c => c.GetPollAsync("gone1")).ReturnsAsync((PollInfo?)null); // deleted
+
+        var history = await _sut.GetVoteHistoryAsync(userId);
+
+        var item = Assert.Single(history);            // the deleted poll is dropped
+        Assert.Equal("live1", item.PollCode);
+        Assert.Equal("Favorite color?", item.Title);
+        Assert.Equal(2, item.AnswerCount);
+        Assert.True(item.IsActive);
     }
 
     [Fact]

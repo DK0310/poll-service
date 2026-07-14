@@ -47,6 +47,13 @@ services:
     environment:
       ConnectionStrings__Default: "Server=db,1433;Database=IdentityDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;"
       Jwt__Secret: ${JWT_SECRET}
+      Google__ClientId: ${GOOGLE_CLIENT_ID}
+      Smtp__Host: ${SMTP_HOST:-smtp.gmail.com}
+      Smtp__Port: ${SMTP_PORT:-587}
+      Smtp__User: ${SMTP_USER}
+      Smtp__Password: ${SMTP_PASSWORD}
+      Smtp__FromEmail: ${SMTP_FROM_EMAIL}
+      Smtp__FromName: ${SMTP_FROM_NAME:-Poll Builder}
     depends_on:
       db:
         condition: service_healthy
@@ -72,6 +79,7 @@ services:
       args:
         VITE_API_URL: /api
         VITE_HUB_URL: /hubs/poll
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
     environment:
       GATEWAY_URL: "http://gateway:8080"
     ports:

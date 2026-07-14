@@ -76,7 +76,8 @@ Poll & Survey Builder is a **microservices-based** real-time polling platform bu
 | Database | SQL Server (per-service DBs) | 2022 |
 | ORM | Entity Framework Core | 10.0 |
 | Real-Time | SignalR WebSocket | ASP.NET Core 10 |
-| Auth | JWT Bearer (7-day expiry, `sub`+`role` claims, validated at Gateway) | — |
+| Auth | JWT Bearer (7-day expiry, `sub`+`role` claims, validated at Gateway); **Google sign-in** (`@react-oauth/google` → Identity API verifies the ID token) + **email OTP** (verify-on-signup + password reset) | — |
+| Email | Gmail SMTP via MailKit (transactional OTP) | — |
 | Authorization | Role-based (Guest / User / Admin) — Gateway policies + per-service owner/admin checks | — |
 | Charts | Hand-rolled — CSS/`div` bar chart (`LiveBarChart`, animated via `transform: scaleX`) + SVG line chart (`LineChart`) | — |
 | SignalR client | `@microsoft/signalr` | Latest |
@@ -121,7 +122,7 @@ The Gateway is the **single entry point** for all external traffic. It:
 | Property | Value |
 |---|---|
 | Port | 5002 (external), 8080 (container) |
-| Responsibility | **Batch** vote submission (one answer per question, submitted once), **per-question** results aggregation, **real-time broadcasting**, creator analytics (owner/admin), anonymous audience **Ask** / Q&A (ask/upvote open; pin/delete owner/admin) |
+| Responsibility | **Batch** vote submission (one answer per question, submitted once), **per-question** results aggregation, **real-time broadcasting**, creator analytics (owner/admin), **per-account vote history**, anonymous audience **Ask** / Q&A (ask/upvote open; pin/delete owner/admin) |
 | Database | `VoteDb` — Votes, AudienceQuestions, AudienceQuestionUpvotes tables |
 | Owns | Votes, AudienceQuestions, AudienceQuestionUpvotes |
 | Consumes | Calls Poll API over HTTP to validate a poll (its questions + options) before accepting a vote |
@@ -132,10 +133,10 @@ The Gateway is the **single entry point** for all external traffic. It:
 | Property | Value |
 |---|---|
 | Port | 5003 (external), 8080 (container) |
-| Responsibility | User registration, login, role-aware JWT generation (`role` claim), admin bootstrap, admin user management (list / promote-demote / delete) |
-| Database | `IdentityDb` — Users table (with `Role`) |
-| Owns | Users |
-| Consumes | Nothing — self-contained |
+| Responsibility | User registration, login, **Google sign-in** (ID-token verification), **email OTP** (verify-on-signup + password reset), **self-service profile** (username / bio / avatar / change-password), role-aware JWT generation (`role` claim), admin bootstrap, admin user management (list / promote-demote / delete) |
+| Database | `IdentityDb` — Users table (with `Role`), VerificationCodes table |
+| Owns | Users, VerificationCodes |
+| Consumes | **Google** (verifies ID tokens against Google's public keys), **Gmail SMTP** (sends OTP emails via MailKit) |
 
 ---
 
@@ -359,7 +360,7 @@ Each service owns its data exclusively and has its own SQL Server database, DbCo
 |---|---|---|---|
 | Poll API | `PollDb` | `PollDbContext` | `Polls`, `Questions`, `PollOptions` |
 | Vote API | `VoteDb` | `VoteDbContext` | `Votes`, `AudienceQuestions`, `AudienceQuestionUpvotes` |
-| Identity API | `IdentityDb` | `IdentityDbContext` | `Users` |
+| Identity API | `IdentityDb` | `IdentityDbContext` | `Users`, `VerificationCodes` |
 
 > In development, all three databases can live in the same SQL Server instance (same `db` container, different `Database=` values). In production they may be separate databases or separate instances. EF Core migrations create each database independently.
 
@@ -372,20 +373,20 @@ Each service owns its data exclusively and has its own SQL Server database, DbCo
 │ Polls              │ Votes                │ Users                  │
 │ ├─ Id (PK)         │ ├─ Id (PK)           │ ├─ Id (PK)            │
 │ ├─ Code (UQ)       │ ├─ PollCode          │ ├─ Email (UQ)         │
-│ ├─ Title?          │ ├─ QuestionId        │ ├─ PasswordHash       │
-│ ├─ Status          │ ├─ OptionIndex       │ ├─ Role               │
-│ ├─ ExpiresAt       │ ├─ TextAnswer?       │ └─ CreatedAt          │
-│ ├─ CreatorId       │ ├─ AuthorName?       │                        │
-│ └─ CreatedAt       │ ├─ AuthorRole?       │                        │
+│ ├─ Title?          │ ├─ QuestionId        │ ├─ PasswordHash?       │
+│ ├─ Status          │ ├─ OptionIndex       │ ├─ GoogleId? (UQ)      │
+│ ├─ ExpiresAt       │ ├─ TextAnswer?       │ ├─ EmailVerified       │
+│ ├─ CreatorId       │ ├─ AuthorName?       │ ├─ Role                │
+│ └─ CreatedAt       │ ├─ AuthorRole?       │ └─ CreatedAt           │
 │                    │ ├─ VoterToken        │                        │
-│ Questions          │ ├─ VotedAt           │                        │
-│ ├─ Id (PK)         │ └─ UQ(PollCode,      │                        │
-│ ├─ PollId (FK)     │      QuestionId,     │                        │
-│ ├─ QuestionIndex   │      VoterToken)     │                        │
-│ ├─ Text            │                      │                        │
-│ └─ Type            │ AudienceQuestions    │                        │
-│                    │ ├─ Id (PK)           │                        │
-│ PollOptions        │ ├─ PollCode (ix)     │                        │
+│ Questions          │ ├─ VotedAt           │ VerificationCodes      │
+│ ├─ Id (PK)         │ └─ UQ(PollCode,      │ ├─ Id (PK)             │
+│ ├─ PollId (FK)     │      QuestionId,     │ ├─ Email (ix+Purpose)  │
+│ ├─ QuestionIndex   │      VoterToken)     │ ├─ CodeHash            │
+│ ├─ Text            │                      │ ├─ Purpose             │
+│ └─ Type            │ AudienceQuestions    │ ├─ ExpiresAt           │
+│                    │ ├─ Id (PK)           │ ├─ ConsumedAt?         │
+│ PollOptions        │ ├─ PollCode (ix)     │ └─ CreatedAt           │
 │ ├─ Id (PK)         │ ├─ Text              │                        │
 │ ├─ QuestionId (FK) │ ├─ Upvotes           │                        │
 │ ├─ OptionIndex     │ ├─ IsPinned          │                        │
@@ -451,6 +452,7 @@ Computed (not persisted): `IsExpired`, `IsClosed`, `IsActive`.
 | AuthorName | string? | OpenText answer author's display label — email local-part (max 64); **null = anonymous guest**. Display-only, client-supplied |
 | AuthorRole | string? | OpenText answer author's role (`User`/`Admin`, max 20); null for guests. Display-only |
 | VoterToken | string | Browser fingerprint / session cookie |
+| UserId | Guid? | Logged-in voter's id (from `X-User-Id`) — powers per-account **vote history**. **NOT a FK** (Users live in IdentityDb); null for anonymous guests |
 | VotedAt | DateTime | UTC, `GETUTCDATE()` default |
 
 **AudienceQuestion** (`VoteDb.AudienceQuestions`) — anonymous audience Ask/Q&A
@@ -481,9 +483,26 @@ A **unique index on `(AudienceQuestionId, VoterKey)`** enforces one upvote per p
 |---|---|---|
 | Id | Guid | PK, `NEWID()` default |
 | Email | string | **Unique** login |
-| PasswordHash | string | BCrypt hash |
+| PasswordHash | string? | BCrypt hash; **null for Google-only accounts** (no password set) |
+| GoogleId | string? | Google `sub`; links the external identity. **Unique** (filtered `WHERE GoogleId IS NOT NULL`), max 255 |
+| EmailVerified | bool | `false` until an email OTP confirms it; Google logins are pre-verified. Login is blocked until `true` |
+| Username | string? | Display name (max 50); null → the UI falls back to the email local-part |
+| Bio | string? | Short profile blurb (max 300) |
+| AvatarUrl | string? | Avatar as a **base64 data URL** (`nvarchar(max)`) — self-contained, no blob store (deployment-safe). Client crops+downscales to 256px; server caps size |
 | Role | string | `User` (default) or `Admin`; max 20, `NOT NULL default 'User'`. Issued in the JWT `role` claim. |
 | CreatedAt | DateTime | UTC, `GETUTCDATE()` default |
+
+**VerificationCode** (`IdentityDb.VerificationCodes`) — one-time email OTP
+
+| Property | Type | Notes |
+|---|---|---|
+| Id | Guid | PK, `NEWID()` default |
+| Email | string | Normalized (trim+lower), max 256; indexed with `Purpose` |
+| CodeHash | string | **BCrypt hash** of the 6-digit code (never stored in plaintext) |
+| Purpose | string | `EmailVerification` or `PasswordReset`, max 40 |
+| ExpiresAt | DateTime | UTC; codes live 10 minutes |
+| ConsumedAt | DateTime? | Single-use marker (null = unused) |
+| CreatedAt | DateTime | UTC, `GETUTCDATE()` default; also drives a 60s resend cooldown |
 
 ### Indexes
 
@@ -497,9 +516,12 @@ A **unique index on `(AudienceQuestionId, VoterKey)`** enforces one upvote per p
 | VoteDb | `Votes.(PollCode, QuestionId, VoterToken)` (UNIQUE) | One vote per voter per question |
 | VoteDb | `Votes.(PollCode, QuestionId, OptionIndex)` | Per-question vote-count aggregation |
 | VoteDb | `Votes.VotedAt` | Analytics (submissions over time) |
+| VoteDb | `Votes.UserId` | Per-account vote history |
 | VoteDb | `AudienceQuestions.PollCode` | List a poll's audience Ask/Q&A questions |
 | VoteDb | `AudienceQuestionUpvotes.(AudienceQuestionId, VoterKey)` (UNIQUE) | One upvote per person per audience question |
 | IdentityDb | `Users.Email` (UNIQUE) | Login lookup |
+| IdentityDb | `Users.GoogleId` (UNIQUE, filtered) | One account per Google identity |
+| IdentityDb | `VerificationCodes.(Email, Purpose)` | Newest OTP lookup per flow |
 
 ### Cross-Service References
 
@@ -531,6 +553,7 @@ All external endpoints are reached **through the Gateway**.
 | POST | `/api/polls/{code}/vote` | No | Submit a **batch**: `{ voterToken, authorName?, authorRole?, answers: [{ questionId, optionIndex, textAnswer? }] }` — one answer per question, one submission per voter (repeat → 409) |
 | GET | `/api/polls/{code}/results` | No | Get **per-question** results (`totalVoters` + `questions[]`, each with option tallies or OpenText answers) |
 | GET | `/api/polls/{code}/analytics` | **Required (owner or admin)** | Submissions-over-time, peak minute, per-question top option (403 if not owner/admin) |
+| GET | `/api/me/votes` | **Required** | The logged-in user's **vote history** — distinct polls they voted on (enriched with title/state from the Poll API), newest first |
 | GET | `/api/polls/{code}/ask` | No | List audience Ask/Q&A questions (pinned → upvotes → oldest) |
 | POST | `/api/polls/{code}/ask` | No | Submit an audience Ask question (anonymous) |
 | POST | `/api/polls/{code}/ask/{id}/upvote` | No | Upvote an audience question — **one per person** (`X-User-Id` or body `voterToken`); repeat → 409 |
@@ -542,8 +565,17 @@ All external endpoints are reached **through the Gateway**.
 
 | Method | Route | Auth | Description |
 |---|---|---|---|
-| POST | `/api/auth/register` | No | Register new user (role `User`), receive JWT (`sub`+`role`) |
-| POST | `/api/auth/login` | No | Login, receive JWT (`sub`+`role`) |
+| POST | `/api/auth/register` | No | Register (role `User`, unverified); emails a 6-digit OTP. **No token** — email must be verified first. Returns `{ requiresVerification: true }` |
+| POST | `/api/auth/verify-email` | No | `{ email, code }` → marks verified, receive JWT (`sub`+`role`) |
+| POST | `/api/auth/resend-code` | No | `{ email, purpose }` → re-send an OTP (60s cooldown; always 200, no enumeration) |
+| POST | `/api/auth/login` | No | Login, receive JWT. Blocked until email verified; rejected for Google-only (no-password) accounts |
+| POST | `/api/auth/google` | No | `{ idToken }` → verifies the Google ID token, find-or-creates the user, receive `{ token, hasPassword }` |
+| POST | `/api/auth/set-password` | **Required** | `{ password }` → sets a password for a Google account that has none (enables email+password login). `CreatorId` from `X-User-Id` |
+| POST | `/api/auth/change-password` | **Required** | `{ currentPassword, newPassword }` → verifies the current password (or first-time set when none) from the profile |
+| POST | `/api/auth/forgot-password` | No | `{ email }` → emails a reset OTP. **Always 200** (no account enumeration) |
+| POST | `/api/auth/reset-password` | No | `{ email, code, newPassword }` → validates the OTP, sets the new password |
+| GET | `/api/users/me` | **Required** | Current user's profile (username, bio, avatar, role, hasPassword, hasGoogle) |
+| PUT | `/api/users/me` | **Required** | Update `{ username?, bio?, avatarUrl? }` (avatar must be an image data URL under the size cap) |
 | GET | `/api/admin/users` | **Admin** | List all users (id, email, role, createdAt) |
 | POST | `/api/admin/users/{id}/role` | **Admin** | Set a user's role (`{ "role": "Admin" \| "User" }`); blocks self-change |
 | DELETE | `/api/admin/users/{id}` | **Admin** | Delete a user; blocks self-delete |
@@ -556,6 +588,10 @@ A **gateway-wide YARP code transform** (`AddRequestTransform`) sets the `X-User-
 
 | Order | Route | Match | Cluster | Auth | Forwarded |
 |---|---|---|---|---|---|
+| 0 | auth-set-password | `/api/auth/set-password` (POST) | identity-api | **authenticated** | ← `sub`+`role` |
+| 0 | auth-change-password | `/api/auth/change-password` (POST) | identity-api | **authenticated** | ← `sub`+`role` |
+| 0 | users-me | `/api/users/me` (GET, PUT) | identity-api | **authenticated** | ← `sub`+`role` |
+| 0 | me-votes | `/api/me/votes` (GET) | vote-api | **authenticated** | ← `sub`+`role` |
 | 1 | vote-submit | `/api/polls/{code}/vote` | vote-api | No | — |
 | 2 | vote-results | `/api/polls/{code}/results` | vote-api | No | — |
 | 3 | signalr-hub | `/hubs/{**remainder}` | vote-api | No | (WebSocket) |
@@ -708,8 +744,13 @@ Three roles:
 | Identity API | `ConnectionStrings__Default` | `Server=db,1433;Database=IdentityDb;...` | IdentityDb connection |
 | Identity API | `Jwt__Secret` | `dev-secret-min-32-characters-here!` | JWT signing key |
 | Identity API | `Admin__Emails__0` | *(unset)* | Email(s) promoted to `Admin` on startup (`__0`, `__1`, …) |
+| Identity API | `Google__ClientId` | *(unset)* | Google OAuth Web client ID — audience for verifying ID tokens (same value as `VITE_GOOGLE_CLIENT_ID`) |
+| Identity API | `Smtp__Host` / `Smtp__Port` | `smtp.gmail.com` / `587` | Gmail SMTP endpoint (OTP email) |
+| Identity API | `Smtp__User` / `Smtp__Password` | *(unset)* | Gmail address + 16-char **App Password** (requires 2-Step Verification) |
+| Identity API | `Smtp__FromEmail` / `Smtp__FromName` | *(unset)* / `Poll Builder` | OTP email `From` header |
 | Frontend | `VITE_API_URL` | `http://localhost:5000/api` | Gateway REST URL |
 | Frontend | `VITE_HUB_URL` | `http://localhost:5000/hubs/poll` | SignalR via Gateway |
+| Frontend | `VITE_GOOGLE_CLIENT_ID` | *(unset)* | Google OAuth Web client ID (public; when unset, social login is hidden) |
 | Frontend | `GATEWAY_URL` | `http://gateway:8080` | Nginx proxy target (compose/Docker image only — `nginx.conf` is an envsubst template; set at container runtime, not build time) |
 
 > **Shared secret:** `Jwt__Secret` must be identical in the Gateway and Identity API. Dev values shown above are placeholders — production values come from the platform's secret store, never from git.
@@ -807,8 +848,11 @@ Docker image naming: `pollbuilder-{service}` (e.g. `pollbuilder-poll-api`) on Do
 | `/poll/:code/analytics` | AnalyticsPage | Creator analytics (owner/admin) |
 | `/my-polls` | MyPollsPage | Creator's poll dashboard (`RequireAuth`) |
 | `/admin` | AdminDashboardPage | Admin dashboard — all polls + users (`RequireAdmin`) |
-| `/login` | LoginPage | Login |
-| `/register` | RegisterPage | Registration |
+| `/login` | LoginPage | Login (+ "Sign in with Google" + "Forgot password?") |
+| `/register` | RegisterPage | Registration → email OTP verification step (+ Google) |
+| `/forgot-password` | ForgotPasswordPage | Request a password-reset code |
+| `/reset-password` | ResetPasswordPage | Enter the code + a new password |
+| `/profile` | ProfilePage | Avatar / username / bio, set-or-change password, vote history (`RequireAuth`) |
 
 The shared chrome (auth-aware nav + footer) lives in `App.tsx`; the landing route renders **full-bleed** with the dark Tailwind `BoardNav`/`BoardFooter` ("Election Night"), while all other routes use the centered layout + legacy `Nav`/`Footer` (now re-paletted dark to match). The app is **dark-only** (no theme toggle).
 
@@ -829,6 +873,11 @@ The shared chrome (auth-aware nav + footer) lives in `App.tsx`; the landing rout
 | **`CreatorId` as a plain Guid in PollDb** | No FK to Users (different DB); value comes from the JWT via `X-User-Id` |
 | **JWT validated at Gateway only** | Centralized auth; services trust the Gateway's `X-User-Id`/`X-User-Role` headers |
 | **Role in the JWT `role` claim → `X-User-Role` header** | Same proven path as `sub`→`X-User-Id`; coarse gating at the Gateway, fine owner/admin checks in services (defense-in-depth) |
+| **Google sign-in via ID-token verification (not ASP.NET's cookie/redirect handler)** | The frontend gets a Google ID token (`@react-oauth/google`) and posts it to `/api/auth/google`; the Identity API verifies it (`Google.Apis.Auth`) and mints the **same** app JWT. Keeps the stateless-JWT-behind-a-gateway model intact — no server-side session, cookies, or correlation state to route through YARP |
+| **Email OTP hashed + single-use + short-lived** (`VerificationCodes`) | 6-digit codes are BCrypt-hashed (like passwords), expire in 10 min, are consumed on use, and rate-limited by a 60s resend cooldown. Used for verify-on-signup and password reset; sent via Gmail SMTP (MailKit) behind an `IEmailSender` abstraction so tests never hit a real server |
+| **Nullable `PasswordHash` + `GoogleId` on `User` (blended accounts)** | A user can have a password, a Google link, or both. Google sign-in goes straight into the app (no forced steps); a password is added later from the **Profile** page (`/api/auth/change-password`, which first-time-sets when none exists). Login rejects a password attempt on a Google-only account and points the user to Google or password reset |
+| **Avatar as a base64 data URL in the DB (no blob store)** | The client crops+downscales the chosen image to 256px on a `<canvas>` and stores it as a `data:` URL in `Users.AvatarUrl`. Self-contained → **deployment-safe** (no file server, object storage, or CORS to break in production); the server caps the size to keep rows/payloads small |
+| **Per-account vote history via nullable `Vote.UserId`** | Votes stay anonymous by default (browser token), but when a logged-in user votes the Gateway's `X-User-Id` is stamped onto each row. `GET /api/me/votes` groups by poll and enriches titles/state via the existing Poll API client. Votes cast while logged out remain anonymous (not retroactively linked) |
 | **Upvote dedup via an `AudienceQuestionUpvote` row** (unique `(AudienceQuestionId, VoterKey)`) | One upvote per person without a login requirement; voter key = user id when present, else browser token |
 | **Admin bootstrap via `Admin:Emails` config** | No self-service privilege escalation; the first admin is seeded from a trusted env list, then admins manage roles |
 | **`Result<T>` instead of exceptions** | Explicit control flow for expected failures across all services |

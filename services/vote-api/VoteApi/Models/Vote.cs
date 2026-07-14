@@ -23,5 +23,10 @@ public class Vote
 
     /// <summary>Browser fingerprint / session token used to enforce one vote per voter per poll.</summary>
     public string VoterToken { get; set; } = "";
+
+    /// <summary>The logged-in voter's id (from the Gateway's X-User-Id), when present — powers
+    /// per-account vote history. NOT a FK — Users live in IdentityDb. Null for anonymous guests.</summary>
+    public Guid? UserId { get; set; }
+
     public DateTime VotedAt { get; set; } = DateTime.UtcNow;
 }

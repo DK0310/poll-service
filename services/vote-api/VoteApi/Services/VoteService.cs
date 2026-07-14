@@ -24,7 +24,7 @@ public class VoteService
     /// Records a batch survey submission: the voter answers every question, submitted once.
     /// The whole batch is validated before anything is persisted.
     /// </summary>
-    public async Task<Result<VoteResultsResponse>> SubmitVoteAsync(string code, VoteRequest request)
+    public async Task<Result<VoteResultsResponse>> SubmitVoteAsync(string code, VoteRequest request, Guid? userId = null)
     {
         // 1. Validate the poll exists and is active (inter-service call to Poll API)
         var poll = await _pollClient.GetPollAsync(code);
@@ -83,6 +83,7 @@ public class VoteService
                 QuestionId = q.Id,
                 OptionIndex = optionIndex,
                 VoterToken = request.VoterToken,
+                UserId = userId,
                 TextAnswer = textAnswer,
                 AuthorName = authorName,
                 AuthorRole = authorRole,
@@ -177,6 +178,29 @@ public class VoteService
             PeakMinute = peak,
             Questions = questions
         });
+    }
+
+    /// <summary>The polls a user has voted on, enriched with each poll's title/state from the Poll API
+    /// (the Vote DB only stores the code). Polls that no longer exist are dropped.</summary>
+    public async Task<List<VoteHistoryItem>> GetVoteHistoryAsync(Guid userId)
+    {
+        var voted = await _repo.GetVotedPollsAsync(userId);
+
+        var items = new List<VoteHistoryItem>();
+        foreach (var v in voted)
+        {
+            var poll = await _pollClient.GetPollAsync(v.PollCode);
+            if (poll is null) continue; // deleted poll — skip
+            items.Add(new VoteHistoryItem
+            {
+                PollCode = v.PollCode,
+                Title = poll.Title,
+                IsActive = poll.IsActive,
+                AnswerCount = v.AnswerCount,
+                VotedAt = v.VotedAt
+            });
+        }
+        return items;
     }
 
     private async Task<VoteResultsResponse> BuildResultsAsync(string code, PollInfo poll)

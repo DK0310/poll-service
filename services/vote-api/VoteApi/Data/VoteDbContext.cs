@@ -53,6 +53,8 @@ public class VoteDbContext : DbContext
             e.HasIndex(v => new { v.PollCode, v.QuestionId, v.OptionIndex });
             // Analytics (votes over time)
             e.HasIndex(v => v.VotedAt);
+            // Per-account vote history
+            e.HasIndex(v => v.UserId);
         });
     }
 }

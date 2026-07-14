@@ -6,8 +6,10 @@ WORKDIR /app
 # SAME origin, so these default to relative paths. Compose can override via build args.
 ARG VITE_API_URL=/api
 ARG VITE_HUB_URL=/hubs/poll
+ARG VITE_GOOGLE_CLIENT_ID=
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_HUB_URL=$VITE_HUB_URL
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 
 COPY package*.json ./
 RUN npm ci

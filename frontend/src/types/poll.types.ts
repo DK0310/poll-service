@@ -85,6 +85,42 @@ export interface AuthResponse {
   token: string;
 }
 
+// Google sign-in returns a token plus whether a password is set (false → prompt to create one).
+export interface GoogleAuthResponse {
+  token: string;
+  hasPassword: boolean;
+}
+
+export type OtpPurpose = 'EmailVerification' | 'PasswordReset';
+
+// ── Profile (Identity API via Gateway) ──────────────────────
+export interface Profile {
+  id: string;
+  email: string;
+  username: string | null;
+  bio: string | null;
+  avatarUrl: string | null;
+  role: string;
+  hasPassword: boolean;
+  hasGoogle: boolean;
+  createdAt: string;
+}
+
+export interface UpdateProfile {
+  username?: string | null;
+  bio?: string | null;
+  avatarUrl?: string | null;
+}
+
+// ── Vote history (Vote API via Gateway) ─────────────────────
+export interface VoteHistoryItem {
+  pollCode: string;
+  title: string | null;
+  isActive: boolean;
+  answerCount: number;
+  votedAt: string;
+}
+
 // ── Admin (admin-only, via Gateway) ─────────────────────────
 export interface AdminUser {
   id: string;

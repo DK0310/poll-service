@@ -1,20 +1,27 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { LogIn, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { KeyRound, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { GoogleSignInButton } from '../components/GoogleSignInButton';
-import { googleClientId } from '../auth/google';
+import { useToast } from '../components/Toast';
 
-export function LoginPage() {
-  const { login, loading, error } = useAuth();
+// Step 2 of password reset: enter the emailed code + a new password. Email is prefilled from
+// the /forgot-password hand-off but stays editable so the page also works if reached directly.
+export function ResetPasswordPage() {
+  const { resetPassword, loading, error } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const { toast } = useToast();
+  const prefill = (useLocation().state as { email?: string } | null)?.email ?? '';
+  const [email, setEmail] = useState(prefill);
+  const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (await login(email, password)) navigate('/my-polls');
+    if (await resetPassword(email, code, password)) {
+      toast('Password updated — please log in.');
+      navigate('/login');
+    }
   };
 
   return (
@@ -25,10 +32,10 @@ export function LoginPage() {
             className="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-tangerine text-on-accent shadow-glow-tangerine"
             aria-hidden="true"
           >
-            <LogIn size={24} strokeWidth={2.25} />
+            <KeyRound size={24} strokeWidth={2.25} />
           </span>
-          <h1 className="font-display text-2xl font-bold tracking-tight text-fg">Welcome back</h1>
-          <p className="mt-1 text-fg-muted">Log in to manage your polls.</p>
+          <h1 className="font-display text-2xl font-bold tracking-tight text-fg">Choose a new password</h1>
+          <p className="mt-1 text-fg-muted">Enter the code we emailed you.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -48,17 +55,35 @@ export function LoginPage() {
             />
           </div>
           <div>
+            <label htmlFor="code" className="board-label">
+              Reset code
+            </label>
+            <input
+              id="code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              className="board-input tracking-[0.5em]"
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              maxLength={6}
+              disabled={loading}
+              required
+            />
+          </div>
+          <div>
             <label htmlFor="password" className="board-label">
-              Password
+              New password{' '}
+              <span className="font-body normal-case tracking-normal text-fg-faint">(min 6 characters)</span>
             </label>
             <div className="relative">
               <input
                 id="password"
                 type={showPw ? 'text' : 'password'}
                 className="board-input pr-12"
-                autoComplete="current-password"
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                minLength={6}
                 disabled={loading}
                 required
               />
@@ -73,21 +98,14 @@ export function LoginPage() {
             </div>
           </div>
 
-          <div className="mt-1 flex justify-end">
-            <Link to="/forgot-password" className="text-sm font-semibold text-tangerine hover:underline">
-              Forgot password?
-            </Link>
-          </div>
-
-          <button type="submit" className="board-btn board-btn--block mt-1" disabled={loading}>
+          <button
+            type="submit"
+            className="board-btn board-btn--block mt-1"
+            disabled={loading || code.length < 6}
+          >
             {loading && <Loader2 size={18} strokeWidth={2.25} className="board-spin" aria-hidden="true" />}
-            {loading ? 'Logging in…' : 'Log in'}
+            {loading ? 'Updating…' : 'Update password'}
           </button>
-          {loading && (
-            <p className="text-center text-sm text-fg-muted">
-              First sign-in can take up to a minute while the free-tier server wakes up.
-            </p>
-          )}
           {error && (
             <p className="text-sm text-tangerine" role="alert">
               {error}
@@ -95,21 +113,9 @@ export function LoginPage() {
           )}
         </form>
 
-        {googleClientId && (
-          <>
-            <div className="my-6 flex items-center gap-3 text-fg-faint">
-              <span className="h-px flex-1 bg-line" />
-              <span className="text-xs font-semibold uppercase tracking-wide">or</span>
-              <span className="h-px flex-1 bg-line" />
-            </div>
-            <GoogleSignInButton />
-          </>
-        )}
-
         <p className="mt-6 text-center text-sm text-fg-muted">
-          No account?{' '}
-          <Link to="/register" className="font-semibold text-tangerine hover:underline">
-            Create one
+          <Link to="/login" className="font-semibold text-tangerine hover:underline">
+            Back to log in
           </Link>
         </p>
       </div>
