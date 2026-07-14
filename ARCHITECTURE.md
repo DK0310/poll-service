@@ -68,7 +68,7 @@ Poll & Survey Builder is a **microservices-based** real-time polling platform bu
 | Component | Technology | Version |
 |---|---|---|
 | Frontend | React + TypeScript + Vite | React 19, Vite 8 |
-| Frontend styling | Tailwind CSS v4 (`@theme`, landing) + token-driven `index.css` (app pages); "Election Night" dark theme | Tailwind 4 |
+| Frontend styling | Tailwind CSS v4 (`@theme`, landing) + token-driven `index.css` (app pages); "Election Night" palette with a **light/dark toggle** (light default) | Tailwind 4 |
 | API Gateway | ASP.NET Core + YARP | .NET 10 |
 | Poll Service | ASP.NET Core Web API | .NET 10 |
 | Vote Service | ASP.NET Core Web API + **SignalR** | .NET 10 |
@@ -180,8 +180,8 @@ poll-service/
 │   │   │   │   ├── Question.cs              ← Survey question (Type + Options); PollQuestionType enum
 │   │   │   │   └── PollOption.cs            ← Option (belongs to a Question)
 │   │   │   ├── Data/
-│   │   │   │   ├── PollDbContext.cs
-│   │   │   │   └── Migrations/
+│   │   │   │   └── PollDbContext.cs
+│   │   │   ├── Migrations/
 │   │   │   ├── Middleware/
 │   │   │   │   └── ErrorHandlingMiddleware.cs
 │   │   │   └── Program.cs                  ← DI registration, pipeline
@@ -197,6 +197,7 @@ poll-service/
 │   │   ├── VoteApi/                       ← ASP.NET Core + SignalR
 │   │   │   ├── Controllers/
 │   │   │   │   ├── VotesController.cs      ← Batch vote submission + results + analytics
+│   │   │   │   ├── MeController.cs         ← GET /api/me/votes (per-account vote history)
 │   │   │   │   └── AskController.cs        ← Anonymous audience Ask/Q&A (list/ask/upvote/pin/delete)
 │   │   │   ├── Hubs/
 │   │   │   │   └── PollHub.cs              ← SignalR hub for live results + Ask
@@ -211,14 +212,15 @@ poll-service/
 │   │   │   │   ├── VoteRequest.cs          ← Batch: VoterToken + Answers[{QuestionId,OptionIndex,TextAnswer}]
 │   │   │   │   ├── VoteResultsResponse.cs  ← Per-question results (TotalVoters + Questions[])
 │   │   │   │   ├── AnalyticsResponse.cs    ← Submission timeline, peak, per-question top option
+│   │   │   │   ├── VoteHistoryItem.cs      ← One row of /api/me/votes (poll + title/state + when)
 │   │   │   │   └── AskDtos.cs              ← SubmitAskRequest, AskResponse
 │   │   │   ├── Models/
 │   │   │   │   ├── Vote.cs                 ← Vote (has QuestionId)
 │   │   │   │   ├── AudienceQuestion.cs
 │   │   │   │   └── AudienceQuestionUpvote.cs ← Upvote dedup (unique AudienceQuestionId+VoterKey)
 │   │   │   ├── Data/
-│   │   │   │   ├── VoteDbContext.cs
-│   │   │   │   └── Migrations/
+│   │   │   │   └── VoteDbContext.cs
+│   │   │   ├── Migrations/
 │   │   │   ├── Middleware/
 │   │   │   │   └── ErrorHandlingMiddleware.cs
 │   │   │   └── Program.cs
@@ -235,28 +237,38 @@ poll-service/
 │   ├── identity-api/                      ← Auth microservice
 │   │   ├── IdentityApi/                   ← ASP.NET Core Web API
 │   │   │   ├── Controllers/
-│   │   │   │   ├── AuthController.cs       ← Register/login
+│   │   │   │   ├── AuthController.cs       ← Register/verify/login/Google/OTP/password flows
+│   │   │   │   ├── UsersController.cs      ← GET/PUT /api/users/me (self-service profile)
 │   │   │   │   └── AdminUsersController.cs  ← /api/admin/users (admin)
 │   │   │   ├── Common/
 │   │   │   │   └── Result.cs               ← Result<T> (per-service)
 │   │   │   ├── Services/
-│   │   │   │   ├── AuthService.cs          ← BCrypt + JWT (role claim) generation
-│   │   │   │   └── AdminService.cs         ← User management (list/setRole/delete)
+│   │   │   │   ├── AuthService.cs          ← BCrypt + JWT (role claim), OTP + Google flows
+│   │   │   │   ├── ProfileService.cs       ← Profile read/update (username/bio/avatar)
+│   │   │   │   ├── AdminService.cs         ← User management (list/setRole/delete)
+│   │   │   │   ├── GoogleTokenVerifier.cs  ← IGoogleTokenVerifier impl (Google.Apis.Auth)
+│   │   │   │   ├── IEmailSender.cs         ← Email abstraction (OTP delivery)
+│   │   │   │   ├── SmtpEmailSender.cs      ← Gmail SMTP via MailKit
+│   │   │   │   └── LogEmailSender.cs       ← Dev fallback — logs the code (no SMTP secrets)
 │   │   │   ├── DTOs/
-│   │   │   │   └── AuthDtos.cs             ← RegisterRequest, LoginRequest, AuthResponse
+│   │   │   │   └── AuthDtos.cs             ← Register/Login/Google/OTP/profile request+response DTOs
 │   │   │   ├── Models/
-│   │   │   │   └── User.cs
+│   │   │   │   ├── User.cs
+│   │   │   │   └── VerificationCode.cs     ← Hashed single-use email OTP
 │   │   │   ├── Data/
-│   │   │   │   ├── IdentityDbContext.cs
-│   │   │   │   └── Migrations/
+│   │   │   │   └── IdentityDbContext.cs
+│   │   │   ├── Migrations/
 │   │   │   ├── Middleware/
 │   │   │   │   └── ErrorHandlingMiddleware.cs
 │   │   │   └── Program.cs
 │   │   ├── IdentityApi.Tests/
 │   │   │   ├── Services/AuthServiceTests.cs
+│   │   │   ├── Services/ProfileServiceTests.cs
 │   │   │   ├── Integration/AuthEndpointTests.cs
 │   │   │   ├── Integration/AdminUsersEndpointTests.cs
+│   │   │   ├── Integration/ProfileEndpointTests.cs
 │   │   │   ├── Integration/CustomWebAppFactory.cs
+│   │   │   ├── TestDoubles.cs              ← Fake email sender + Google verifier
 │   │   │   └── IdentityApi.Tests.csproj
 │   │   ├── Dockerfile
 │   │   └── IdentityApi.sln
@@ -276,11 +288,13 @@ poll-service/
 │   │   │   └── warmup.ts                   ← fire-and-forget pings to wake the free-tier backend
 │   │   ├── auth/
 │   │   │   ├── session.ts                  ← token + JWT decode (getUserId/getRole/isAdmin/getDisplayName)
+│   │   │   ├── google.ts                   ← Google Identity Services script loader + ID-token callback
 │   │   │   └── voter.ts                    ← persistent browser voter token (vote + upvote)
 │   │   ├── types/
 │   │   │   └── poll.types.ts               ← TypeScript interfaces for API data
 │   │   ├── utils/
-│   │   │   └── csv.ts                       ← Client-side CSV export (results download; no endpoint)
+│   │   │   ├── csv.ts                       ← Client-side CSV export (results download; no endpoint)
+│   │   │   └── avatar.ts                    ← Canvas crop + downscale to a 256px base64 data URL
 │   │   ├── hooks/
 │   │   │   ├── useCreatePoll.ts            ← Poll creation
 │   │   │   ├── usePollInfo.ts              ← Fetch poll by code
@@ -291,6 +305,10 @@ poll-service/
 │   │   │   ├── useMyPolls.ts               ← Fetch creator's polls
 │   │   │   ├── useAuth.ts                  ← Login/register actions
 │   │   │   ├── useAuthStatus.ts            ← Reactive auth/role state (auth-change event)
+│   │   │   ├── useProfile.ts               ← Profile fetch/update + password flows
+│   │   │   ├── useVoteHistory.ts           ← Fetch /api/me/votes
+│   │   │   ├── useTheme.tsx                ← ThemeProvider/useTheme (light/dark, localStorage)
+│   │   │   ├── themeTokens.ts              ← Light-mode inline token overrides
 │   │   │   └── useAdmin.ts                 ← Admin dashboard data + actions
 │   │   ├── components/
 │   │   │   ├── PollForm.tsx                ← Multi-question survey builder (title + N questions, each type + options)
@@ -302,6 +320,8 @@ poll-service/
 │   │   │   ├── PollCard.tsx                ← Poll summary card
 │   │   │   ├── ShareLink.tsx               ← Copyable share link + "Show QR" toggle (qrcode.react)
 │   │   │   ├── Toast.tsx                   ← ToastProvider + useToast (no-dependency notifications)
+│   │   │   ├── GoogleSignInButton.tsx      ← "Sign in with Google" button (@react-oauth/google)
+│   │   │   ├── ThemeToggle.tsx             ← Light/dark switch in the nav
 │   │   │   ├── RequireAuth.tsx             ← Route guard (logged-in only)
 │   │   │   └── RequireAdmin.tsx            ← Route guard (admin only)
 │   │   ├── pages/
@@ -312,8 +332,11 @@ poll-service/
 │   │   │   ├── AnalyticsPage.tsx           ← Creator analytics dashboard
 │   │   │   ├── MyPollsPage.tsx             ← Creator's poll dashboard
 │   │   │   ├── AdminDashboardPage.tsx      ← Admin: all polls + users
-│   │   │   ├── LoginPage.tsx               ← Login form
-│   │   │   └── RegisterPage.tsx            ← Registration form
+│   │   │   ├── LoginPage.tsx               ← Login form (+ Google + forgot-password link)
+│   │   │   ├── RegisterPage.tsx            ← Registration form → email OTP verify step
+│   │   │   ├── ForgotPasswordPage.tsx      ← Request a password-reset OTP
+│   │   │   ├── ResetPasswordPage.tsx       ← Enter the OTP + new password
+│   │   │   └── ProfilePage.tsx             ← Avatar/username/bio + password + vote history
 │   │   ├── App.tsx                         ← Router + auth-aware nav + footers (dark BoardNav/BoardFooter on landing); mounts ToastProvider
 │   │   ├── index.css                       ← Legacy design system (app pages) — re-paletted dark "Election Night", in the `legacy` cascade layer
 │   │   └── tailwind.css                    ← Tailwind v4 entry: @theme "Election Night" tokens + imports index.css in the lowest cascade layer
@@ -327,7 +350,8 @@ poll-service/
 │   └── Dockerfile
 │
 ├── .github/workflows/
-│   └── ci-cd.yml                           ← Lint/test → build/push → deploy ALL services
+│   ├── ci-cd.yml                           ← Lint/test → build/push → deploy ALL services
+│   └── keepalive.yml                       ← Cron ping (every 10 min) keeps free-tier Render services awake
 ├── docker-compose.yml                      ← Local orchestration (all services)
 ├── ARCHITECTURE.md                         ← This file (authoritative)
 ├── ARCHITECTURE_AUDIT.md                   ← Latest doc↔code alignment audit record
@@ -702,7 +726,7 @@ JWT is validated **once, centrally, at the Gateway**. Downstream services trust 
 
 ### Cold-start mitigation (free-tier)
 
-On a free-tier host the backend services sleep when idle and take ~30–60s to wake on the first request. To soften this, the SPA fires **fire-and-forget warm-up pings on app load** (`src/api/warmup.ts`): `GET /api/auth/warmup` (identity), `/api/polls/warmup` (gateway + poll-api), `/api/polls/warmup/results` (vote-api). These intentionally hit non-existent codes and **404** — the only goal is to wake each process (and trigger its startup DB connect) while the user reads the page, so the first real action (login/create/vote) isn't stuck on a cold boot. The login page also shows a "server is waking" hint while a request is in flight.
+On a free-tier host the backend services sleep when idle and take ~30–60s to wake on the first request. To soften this, the SPA fires **fire-and-forget warm-up pings on app load** (`src/api/warmup.ts`): `GET /api/auth/warmup` (identity), `/api/polls/warmup` (gateway + poll-api), `/api/polls/warmup/results` (vote-api). These intentionally hit non-existent codes and **404** — the only goal is to wake each process (and trigger its startup DB connect) while the user reads the page, so the first real action (login/create/vote) isn't stuck on a cold boot. The login page also shows a "server is waking" hint while a request is in flight. Additionally, a scheduled GitHub Actions workflow (`.github/workflows/keepalive.yml`) pings every Render service every 10 minutes so the stack stays warm for demos without depending on any local machine.
 
 ---
 
@@ -856,7 +880,7 @@ Docker image naming: `pollbuilder-{service}` (e.g. `pollbuilder-poll-api`) on Do
 | `/reset-password` | ResetPasswordPage | Enter the code + a new password |
 | `/profile` | ProfilePage | Avatar / username / bio, set-or-change password, vote history (`RequireAuth`) |
 
-The shared chrome (auth-aware nav + footer) lives in `App.tsx`; the landing route renders **full-bleed** with the dark Tailwind `BoardNav`/`BoardFooter` ("Election Night"), while all other routes use the centered layout + legacy `Nav`/`Footer` (now re-paletted dark to match). The app is **dark-only** (no theme toggle).
+The shared chrome (auth-aware nav + footer) lives in `App.tsx`; the landing route renders **full-bleed** with the dark Tailwind `BoardNav`/`BoardFooter` ("Election Night"), while all other routes use the centered layout + legacy `Nav`/`Footer` (re-paletted to match). The app has a **light/dark toggle** (`ThemeProvider`/`useTheme` + `ThemeToggle`): **light is the default**, the choice persists in `localStorage`, and an inline script in `index.html` applies it pre-paint (no flash); `themeTokens.ts` overrides the dark tokens inline for light mode.
 
 ---
 
@@ -894,4 +918,4 @@ The shared chrome (auth-aware nav + footer) lives in `App.tsx`; the landing rout
 | **QR share code in `ShareLink` (`qrcode.react`, SVG)** | A "Show QR" toggle encodes the vote URL so an audience can scan to vote and watch results update live — frontend-only, no backend/route change; SVG renders crisply on a projector and works offline (no external QR service). Kept on a white quiet-zone background for scan reliability |
 | **Client-side CSV export (`utils/csv.ts`)** | "Download CSV" on the Results page builds one flat file from the already-loaded per-question `VoteResults` (each question's option tallies, or OpenText answers with author) — no new endpoint/route; a UTF-8 BOM makes Excel open it cleanly |
 | **No-dependency toast context (`Toast.tsx`)** | `ToastProvider`/`useToast` give lightweight action feedback (copy/create/close/delete) without adding a library, matching the project's minimal-deps style; styled from tokens so it themes automatically |
-| **"Election Night" dark-first UI (Tailwind v4 + re-paletted legacy CSS)** | The frontend redesign (todo Phase 18). The landing (`/`) is rebuilt in **Tailwind v4** (`@theme` tokens in `src/tailwind.css`) as a dark "live results board"; app pages keep their token-driven `index.css` but it's **re-paletted to the same dark palette** and forced dark-first (`<html data-theme="dark">`). The legacy `index.css` is imported into the **lowest CSS cascade layer** so Tailwind utilities win on the landing without disturbing app pages. The old light/dark **toggle (`useTheme`) was removed** — the app is dark-only. Type: Bricolage Grotesque + Hanken Grotesk + Geist Mono. Strategy in `PRODUCT.md`/`DESIGN.md` |
+| **"Election Night" dark-first UI (Tailwind v4 + re-paletted legacy CSS)** | The frontend redesign (todo Phase 18). The landing (`/`) is rebuilt in **Tailwind v4** (`@theme` tokens in `src/tailwind.css`) as a dark "live results board"; app pages keep their token-driven `index.css` but it's **re-paletted to the same dark palette** and forced dark-first (`<html data-theme="dark">`). The legacy `index.css` is imported into the **lowest CSS cascade layer** so Tailwind utilities win on the landing without disturbing app pages. The light/dark **toggle was later reinstated** (`useTheme` + `themeTokens.ts`, light default) — light mode applies inline token overrides, dark clears them back to the Election Night palette. Type: Bricolage Grotesque + Hanken Grotesk + Geist Mono. Strategy in `PRODUCT.md`/`DESIGN.md` |
