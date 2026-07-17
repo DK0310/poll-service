@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Yarp.ReverseProxy.Transforms;
 
@@ -64,6 +66,32 @@ builder.Services.AddAuthorization(opt =>
     opt.AddPolicy("admin", p => p.RequireAuthenticatedUser().RequireClaim("role", "Admin"));
 });
 
+// Rate limiting — partitioned by client IP.
+builder.Services.AddRateLimiter(opt =>
+{
+    opt.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Global limiter: applies to every request through the gateway.
+    opt.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromSeconds(10),
+                QueueLimit = 0
+            }));
+
+    // Stricter named policy for vote submission, opted into per-route via
+    // "RateLimiterPolicy" in the YARP route config (appsettings.json).
+    opt.AddFixedWindowLimiter("vote-submit", limiterOpt =>
+    {
+        limiterOpt.PermitLimit = 5;
+        limiterOpt.Window = TimeSpan.FromSeconds(10);
+        limiterOpt.QueueLimit = 0;
+    });
+});
+
 // CORS — the browser frontend is the only external origin allowed.
 // AllowCredentials is required for the SignalR WebSocket.
 builder.Services.AddCors(opt => opt.AddPolicy("Frontend", p =>
@@ -77,6 +105,7 @@ var app = builder.Build();
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapReverseProxy();
 
 app.Run();

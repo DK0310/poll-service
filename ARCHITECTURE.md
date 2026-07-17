@@ -97,7 +97,7 @@ Poll & Survey Builder is a **microservices-based** real-time polling platform bu
 | Property | Value |
 |---|---|
 | Port | 5000 (external), 8080 (container) |
-| Responsibility | Route requests, validate JWT, set `X-User-Id` + `X-User-Role` headers, enforce route-level authorization (`authenticated` / `admin`), proxy WebSockets |
+| Responsibility | Route requests, validate JWT, set `X-User-Id` + `X-User-Role` headers, enforce route-level authorization (`authenticated` / `admin`), proxy WebSockets, enforce rate limiting |
 | Database | None (stateless) |
 | Key Tech | YARP reverse proxy |
 
@@ -106,6 +106,7 @@ The Gateway is the **single entry point** for all external traffic. It:
 - Validates JWT tokens for protected endpoints; enforces the `authenticated` and `admin` authorization policies per route
 - Extracts the user id (`sub`) and role (`role`) from the JWT and forwards them as the `X-User-Id` / `X-User-Role` headers (stripping any client-supplied copies first — anti-spoof)
 - Proxies WebSocket connections for SignalR
+- Rate-limits requests: a **global** fixed-window limiter (100 req/10s per client IP) covers every request through the gateway, and a **stricter named policy** (`vote-submit`, 5 req/10s per IP) is opted into by the vote-submit route to curb vote-spam abuse. Both reject with `429 Too Many Requests`.
 
 ### 2. Poll API
 
@@ -618,7 +619,7 @@ A **gateway-wide YARP code transform** (`AddRequestTransform`) sets the `X-User-
 | 0 | auth-change-password-code | `/api/auth/change-password/request-code` (POST) | identity-api | **authenticated** | ← `sub`+`role` |
 | 0 | users-me | `/api/users/me` (GET, PUT) | identity-api | **authenticated** | ← `sub`+`role` |
 | 0 | me-votes | `/api/me/votes` (GET) | vote-api | **authenticated** | ← `sub`+`role` |
-| 1 | vote-submit | `/api/polls/{code}/vote` | vote-api | No | — |
+| 1 | vote-submit | `/api/polls/{code}/vote` | vote-api | No | — (rate-limited: `vote-submit` policy, 5 req/10s per IP) |
 | 2 | vote-results | `/api/polls/{code}/results` | vote-api | No | — |
 | 3 | signalr-hub | `/hubs/{**remainder}` | vote-api | No | (WebSocket) |
 | 4 | auth-route | `/api/auth/{**remainder}` | identity-api | No | — |
