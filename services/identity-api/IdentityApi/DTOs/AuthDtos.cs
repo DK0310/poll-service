@@ -26,7 +26,7 @@ public record AuthResponse
     public string Token { get; init; } = "";
 }
 
-// ── Email OTP + Google login ────────────────────────────────
+// Email OTP + Google login
 public record RegisterResponse
 {
     public bool RequiresVerification { get; init; } = true;
@@ -102,7 +102,7 @@ public record ChangePasswordRequest
     public string Code { get; init; } = "";
 }
 
-// ── Profile ─────────────────────────────────────────────────
+// Profile
 public record ProfileResponse
 {
     public Guid Id { get; init; }
@@ -128,7 +128,7 @@ public record UpdateProfileRequest
     public string? AvatarUrl { get; init; }
 }
 
-// ── Admin user management ───────────────────────────────────
+// Admin user management
 public record AdminUserResponse
 {
     public Guid Id { get; init; }

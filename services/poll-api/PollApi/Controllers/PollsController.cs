@@ -11,12 +11,11 @@ public class PollsController : ControllerBase
     private readonly PollService _service;
     public PollsController(PollService service) => _service = service;
 
-    // ── POST /api/polls ─────────────────────────────────────────
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreatePollRequest request)
     {
-        // Creating a poll requires a logged-in user (Gateway enforces auth on this route
-        // and sets X-User-Id from the JWT). No header → not authenticated.
+        // Creating a poll needs a logged-in user. The gateway gates this route and sets X-User-Id,
+        // so no header means the request didn't come through authenticated.
         if (!TryGetUserId(out var creatorId)) return Unauthorized();
 
         var result = await _service.CreateAsync(request, creatorId);
@@ -25,8 +24,8 @@ public class PollsController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
-    // ── GET /api/polls/my-polls ─────────────────────────────────
-    // Literal segment wins over {code}; the Gateway only routes here with a valid JWT.
+    // The literal "my-polls" segment is matched ahead of {code}, and the gateway only routes here
+    // with a valid token.
     [HttpGet("my-polls")]
     public async Task<IActionResult> MyPolls()
     {
@@ -35,7 +34,6 @@ public class PollsController : ControllerBase
         return Ok(polls);
     }
 
-    // ── GET /api/polls/{code} ───────────────────────────────────
     [HttpGet("{code}")]
     public async Task<IActionResult> GetPoll(string code)
     {
@@ -45,7 +43,6 @@ public class PollsController : ControllerBase
             : NotFound(new { error = result.Error });
     }
 
-    // ── PATCH /api/polls/{code}/close ───────────────────────────
     [HttpPatch("{code}/close")]
     public async Task<IActionResult> Close(string code)
     {
@@ -55,7 +52,6 @@ public class PollsController : ControllerBase
         return MapFailure(result.Error!);
     }
 
-    // ── DELETE /api/polls/{code} ────────────────────────────────
     [HttpDelete("{code}")]
     public async Task<IActionResult> Delete(string code)
     {
@@ -78,8 +74,8 @@ public class PollsController : ControllerBase
         => Request.Headers.TryGetValue("X-User-Role", out var role)
            && role.ToString() == "Admin";
 
-    // poll-api has no auth scheme registered (the Gateway validates JWTs), so we return
-    // status codes directly rather than Forbid()/Challenge() which require a scheme.
+    // NOTE: poll-api registers no auth scheme (the gateway does all JWT work), so Forbid()/Challenge()
+    // would throw for lack of a scheme. We return the status codes explicitly instead.
     private IActionResult MapFailure(string error)
     {
         if (error.Contains("not found", StringComparison.OrdinalIgnoreCase))

@@ -3,8 +3,8 @@ using Google.Apis.Auth;
 namespace IdentityApi.Services;
 
 /// <summary>
-/// Validates a Google ID token against Google's public keys, checking the audience
-/// matches our configured Google:ClientId. Returns null when the token is invalid.
+/// Checks a Google ID token against Google's public keys and confirms its audience is our own
+/// Google:ClientId (so a token minted for a different app is rejected). Returns null if invalid.
 /// </summary>
 public class GoogleTokenVerifier : IGoogleTokenVerifier
 {

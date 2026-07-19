@@ -3,10 +3,9 @@ using System.Net.Http.Json;
 namespace VoteApi.Services;
 
 /// <summary>
-/// Typed HttpClient wrapper for the inter-service call to the Poll API.
-/// Returns null on a non-2xx response or transport failure so callers degrade gracefully
-/// (never accept a vote referencing an unvalidated poll).
-/// Method is virtual so VoteService can be unit-tested with a mocked client.
+/// Calls poll-api over HTTP to look up a poll. Returns null on any non-2xx or transport error, so
+/// a caller that can't confirm the poll simply refuses the vote instead of trusting stale data.
+/// GetPollAsync is virtual so VoteService's unit tests can mock it.
 /// </summary>
 public class PollClientService
 {
@@ -28,8 +27,8 @@ public class PollClientService
     }
 }
 
-// Shape of the poll data this service consumes from the Poll API's PollResponse
-// (subset — matched case-insensitively against the camelCase JSON).
+// The subset of poll-api's PollResponse that vote-api actually needs. Bound case-insensitively
+// against the camelCase JSON, so field names don't have to match casing exactly.
 public record PollInfo
 {
     public string Code { get; init; } = "";

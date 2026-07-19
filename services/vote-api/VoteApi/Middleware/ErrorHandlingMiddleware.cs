@@ -1,6 +1,6 @@
 namespace VoteApi.Middleware;
 
-/// <summary>Catches unhandled exceptions and returns a JSON 500 instead of a stack trace.</summary>
+/// <summary>Turns any unhandled exception into a clean JSON 500 so a stack trace never reaches the client.</summary>
 public class ErrorHandlingMiddleware
 {
     private readonly RequestDelegate _next;

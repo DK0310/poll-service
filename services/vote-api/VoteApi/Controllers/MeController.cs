@@ -3,7 +3,7 @@ using VoteApi.Services;
 
 namespace VoteApi.Controllers;
 
-// Per-account voter data. Authenticated at the Gateway; we trust the X-User-Id header it sets.
+// Per-account voter data. Auth is enforced at the gateway; we read the caller from X-User-Id.
 [ApiController]
 [Route("api/me")]
 public class MeController : ControllerBase
@@ -11,7 +11,6 @@ public class MeController : ControllerBase
     private readonly VoteService _service;
     public MeController(VoteService service) => _service = service;
 
-    // ── GET /api/me/votes ───────────────────────────────────────
     [HttpGet("votes")]
     public async Task<IActionResult> Votes()
     {

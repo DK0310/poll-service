@@ -61,3 +61,6 @@ TestResults/
 *.coveragexml
 BenchmarkDotNet.Artifacts/
 .claude/settings.json
+.claude
+.impeccable
+docs

@@ -31,7 +31,7 @@ public class AskRepository
         await _db.SaveChangesAsync();
     }
 
-    // ── Upvote dedup (one per voter key per question) ───────────
+    // Backs the "one upvote per voter key per question" rule.
     public virtual Task<bool> HasUpvotedAsync(Guid audienceQuestionId, string voterKey)
         => _db.AudienceQuestionUpvotes.AnyAsync(u => u.AudienceQuestionId == audienceQuestionId && u.VoterKey == voterKey);
 

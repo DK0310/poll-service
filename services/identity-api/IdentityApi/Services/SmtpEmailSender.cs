@@ -5,7 +5,8 @@ using MimeKit;
 namespace IdentityApi.Services;
 
 /// <summary>
-/// Gmail SMTP sender (MailKit). Config under Smtp: Host/Port/User/Password (Gmail App Password)/FromEmail/FromName.
+/// Sends mail through Gmail SMTP with MailKit. Configured under Smtp: Host, Port, User,
+/// Password (a Gmail App Password, not the account password), FromEmail, FromName.
 /// </summary>
 public class SmtpEmailSender : IEmailSender
 {
@@ -24,8 +25,8 @@ public class SmtpEmailSender : IEmailSender
         var port = int.TryParse(_config["Smtp:Port"], out var p) ? p : 587;
         var user = _config["Smtp:User"]
             ?? throw new InvalidOperationException("Smtp:User is not configured");
-        // Gmail shows App Passwords as four space-separated groups; strip whitespace so the
-        // value can be pasted exactly as displayed.
+        // Gmail displays App Passwords as four space-separated groups; strip spaces so it works
+        // whether pasted as shown or without them.
         var password = (_config["Smtp:Password"]
             ?? throw new InvalidOperationException("Smtp:Password is not configured"))
             .Replace(" ", "");
@@ -38,7 +39,7 @@ public class SmtpEmailSender : IEmailSender
         message.Subject = subject;
         message.Body = new TextPart("plain") { Text = body };
 
-        // Smtp:Debug=true dumps the full SMTP conversation (incl. Gmail's queue-id) to stderr.
+        // Set Smtp:Debug=true to log the whole SMTP exchange (including Gmail's queue id) to stderr.
         var debug = string.Equals(_config["Smtp:Debug"], "true", StringComparison.OrdinalIgnoreCase);
         using var client = debug
             ? new SmtpClient(new MailKit.ProtocolLogger(Console.OpenStandardError()))

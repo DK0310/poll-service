@@ -8,20 +8,21 @@ using Yarp.ReverseProxy.Transforms;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// YARP reverse proxy — routes + clusters come from the "ReverseProxy" config section.
-// A code transform forwards the authenticated user id as X-User-Id (config-based
-// {claim:...} tokens are NOT supported by YARP, so this must be done in code).
+// Routes and clusters are loaded from the "ReverseProxy" config section (appsettings.json).
+// YARP can't read a JWT claim from config, so the request transform below copies the caller's
+// identity into headers in code.
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
     .AddTransforms(ctx =>
     {
         ctx.AddRequestTransform(transform =>
         {
-            // Anti-spoofing: never trust client-supplied identity headers.
+            // NOTE: this is the security boundary. Downstream services trust X-User-Id/Role
+            // blindly, so we drop whatever the client sent and set them only from the JWT we
+            // just validated. Remove these two lines and anyone can impersonate any user.
             transform.ProxyRequest.Headers.Remove("X-User-Id");
             transform.ProxyRequest.Headers.Remove("X-User-Role");
 
-            // Forward the user id from the validated JWT (sub) when present.
             var userId = transform.HttpContext.User.FindFirst("sub")?.Value
                          ?? transform.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!string.IsNullOrEmpty(userId))
@@ -29,7 +30,6 @@ builder.Services.AddReverseProxy()
                 transform.ProxyRequest.Headers.Add("X-User-Id", userId);
             }
 
-            // Forward the role from the validated JWT (role) when present.
             var role = transform.HttpContext.User.FindFirst("role")?.Value;
             if (!string.IsNullOrEmpty(role))
             {
@@ -40,15 +40,17 @@ builder.Services.AddReverseProxy()
         });
     });
 
-// Centralized JWT validation. Tokens are signed by the Identity API with the SAME Jwt:Secret.
-// MapInboundClaims = false keeps raw JWT claim names (so "sub" stays "sub").
+// The gateway is the only place that verifies JWTs.
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opt =>
     {
+        // Keep the raw claim names ("sub", "role") instead of remapping them to .NET's URIs.
         opt.MapInboundClaims = false;
         opt.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
+            // NOTE: must be byte-for-byte identical to identity-api's Jwt:Secret. Identity signs
+            // the token, the gateway verifies it with this same key; a mismatch = every request 401s.
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"]
                     ?? throw new InvalidOperationException("Jwt:Secret is not configured"))),
@@ -62,16 +64,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization(opt =>
 {
     opt.AddPolicy("authenticated", p => p.RequireAuthenticatedUser());
-    // Admin-only routes: a valid JWT carrying the role=Admin claim.
     opt.AddPolicy("admin", p => p.RequireAuthenticatedUser().RequireClaim("role", "Admin"));
 });
 
-// Rate limiting — partitioned by client IP.
 builder.Services.AddRateLimiter(opt =>
 {
     opt.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-    // Global limiter: applies to every request through the gateway.
+    // NOTE: partitioned by client IP. Behind a proxy/load balancer (e.g. Render) every request
+    // can arrive with the same IP, which lumps all users into one bucket. If you see unexpected
+    // 429s in production, wire up ForwardedHeaders so this reads the real client IP.
     opt.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -82,8 +84,7 @@ builder.Services.AddRateLimiter(opt =>
                 QueueLimit = 0
             }));
 
-    // Stricter named policy for vote submission, opted into per-route via
-    // "RateLimiterPolicy" in the YARP route config (appsettings.json).
+    // Tighter limit just for vote submits; routes opt in via "RateLimiterPolicy" in appsettings.json.
     opt.AddFixedWindowLimiter("vote-submit", limiterOpt =>
     {
         limiterOpt.PermitLimit = 5;
@@ -92,8 +93,7 @@ builder.Services.AddRateLimiter(opt =>
     });
 });
 
-// CORS — the browser frontend is the only external origin allowed.
-// AllowCredentials is required for the SignalR WebSocket.
+// Only the frontend origin may call the API. AllowCredentials is needed for the SignalR websocket.
 builder.Services.AddCors(opt => opt.AddPolicy("Frontend", p =>
     p.WithOrigins(builder.Configuration["Frontend:Url"] ?? "http://localhost:5173")
      .AllowAnyMethod()
@@ -102,6 +102,8 @@ builder.Services.AddCors(opt => opt.AddPolicy("Frontend", p =>
 
 var app = builder.Build();
 
+// Order matters: authentication must run before authorization, and both before the proxy
+// forwards the request (the transform above needs the validated user).
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();

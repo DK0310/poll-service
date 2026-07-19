@@ -11,7 +11,6 @@ public class AskController : ControllerBase
     private readonly AskService _service;
     public AskController(AskService service) => _service = service;
 
-    // ── GET /api/polls/{code}/ask ───────────────────────────────
     [HttpGet("{code}/ask")]
     public async Task<IActionResult> List(string code)
     {
@@ -19,7 +18,6 @@ public class AskController : ControllerBase
         return result.IsSuccess ? Ok(result.Value) : NotFound(new { error = result.Error });
     }
 
-    // ── POST /api/polls/{code}/ask ──────────────────────────────
     [HttpPost("{code}/ask")]
     public async Task<IActionResult> Submit(string code, [FromBody] SubmitAskRequest request)
     {
@@ -30,8 +28,7 @@ public class AskController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
-    // ── POST /api/polls/{code}/ask/{id}/upvote ──────────────────
-    // One upvote per person: logged-in users dedup by X-User-Id; guests by their voter token.
+    // One upvote per person: logged-in users are deduped by X-User-Id, guests by their voter token.
     [HttpPost("{code}/ask/{id:guid}/upvote")]
     public async Task<IActionResult> Upvote(string code, Guid id, [FromBody] UpvoteRequest? request)
     {
@@ -46,7 +43,6 @@ public class AskController : ControllerBase
         return NotFound(new { error = result.Error });
     }
 
-    // ── POST /api/polls/{code}/ask/{id}/pin ─────────────────────
     [HttpPost("{code}/ask/{id:guid}/pin")]
     public async Task<IActionResult> Pin(string code, Guid id)
     {
@@ -54,7 +50,6 @@ public class AskController : ControllerBase
         return Map(result.IsSuccess, result.Error, () => Ok(result.Value));
     }
 
-    // ── DELETE /api/polls/{code}/ask/{id} ───────────────────────
     [HttpDelete("{code}/ask/{id:guid}")]
     public async Task<IActionResult> Delete(string code, Guid id)
     {

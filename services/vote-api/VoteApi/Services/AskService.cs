@@ -8,9 +8,9 @@ using VoteApi.Repositories;
 namespace VoteApi.Services;
 
 /// <summary>
-/// Anonymous audience Q&A ("Ask") for a poll: anyone may submit a question or upvote it; pinning
-/// highlights it. Every change broadcasts the refreshed list to the poll's SignalR group
-/// ("ReceiveAskUpdate"). Distinct from survey questions, which are owned by the Poll API.
+/// Audience Q&A ("Ask") for a poll: anyone can post a question or upvote one; the owner/admin can
+/// pin or delete. Any change re-broadcasts the list to the poll's SignalR group ("ReceiveAskUpdate").
+/// These are separate from the survey questions, which belong to poll-api.
 /// </summary>
 public class AskService
 {
@@ -49,7 +49,7 @@ public class AskService
         return Result<List<AskResponse>>.Success(questions.Select(AskResponse.From).ToList());
     }
 
-    // One upvote per voter key (logged-in user id or browser token) per question.
+    // One upvote per person per question. voterKey is the user id when logged in, else a browser token.
     public async Task<Result<AskResponse>> UpvoteAsync(string code, Guid id, string voterKey)
     {
         if (string.IsNullOrWhiteSpace(voterKey))
@@ -69,7 +69,7 @@ public class AskService
         return Result<AskResponse>.Success(AskResponse.From(question));
     }
 
-    // Pin/unpin: poll owner or admin only.
+    // Pin/unpin a question: poll owner or admin only.
     public async Task<Result<AskResponse>> TogglePinAsync(string code, Guid id, Guid? userId, bool isAdmin)
     {
         var question = await _repo.GetByIdAsync(id);
@@ -100,7 +100,8 @@ public class AskService
         return Result<bool>.Success(true);
     }
 
-    // Owner = the poll's CreatorId (fetched from the Poll API); admins always pass.
+    // Ownership check: admins always pass; otherwise the caller must be the poll's creator
+    // (CreatorId comes from poll-api).
     private async Task<Result<bool>> EnsureOwnerOrAdminAsync(string code, Guid? userId, bool isAdmin)
     {
         if (isAdmin) return Result<bool>.Success(true);

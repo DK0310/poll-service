@@ -1,9 +1,9 @@
 namespace PollApi.Services;
 
 /// <summary>
-/// Background service that periodically closes polls whose expiry has passed, so an expired
-/// poll is durably Closed (not just computed-inactive) and stops accepting votes. The results
-/// page shows a "closed — final results" banner once a poll is no longer active.
+/// Runs on a timer and closes any poll past its expiry, so the poll is durably Closed in the DB
+/// rather than only looking inactive when read. Once closed it stops accepting votes and the
+/// results page switches to its "final results" state.
 /// </summary>
 public class PollCleanupService : BackgroundService
 {
@@ -26,7 +26,7 @@ public class PollCleanupService : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            // Delay first so the service doesn't run during fast integration-test startup.
+            // Wait before the first pass, so a fast-starting integration test never triggers a sweep.
             try
             {
                 await Task.Delay(_interval, stoppingToken);
@@ -46,7 +46,7 @@ public class PollCleanupService : BackgroundService
             }
             catch (Exception ex)
             {
-                // Never let a transient failure kill the loop.
+                // Swallow a one-off failure (e.g. a brief DB blip) so the loop keeps running.
                 _logger.LogWarning(ex, "Poll cleanup pass failed; will retry next interval");
             }
         }

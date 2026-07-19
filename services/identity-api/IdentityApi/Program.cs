@@ -12,8 +12,9 @@ builder.Services.AddDbContext<IdentityDbContext>(opt =>
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<ProfileService>();
-// Use real Gmail SMTP only when credentials are actually configured; otherwise fall back to a
-// logging sender so the OTP flows work (and print the code) in local dev without secrets.
+
+// Send real email only when SMTP creds are set. Without them, LogEmailSender just writes the OTP
+// to the console so the verification/reset flows still work locally without secrets.
 const string SecretPlaceholder = "__SET_VIA_USER_SECRETS_OR_ENV__";
 static bool IsConfigured(string? v) => !string.IsNullOrWhiteSpace(v) && v != SecretPlaceholder;
 if (IsConfigured(builder.Configuration["Smtp:User"]) && IsConfigured(builder.Configuration["Smtp:Password"]))
@@ -27,8 +28,8 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// Apply EF Core migrations on startup, retrying while SQL Server starts (docker-compose).
-// Skipped for non-relational providers (the in-memory DB used by integration tests).
+// Create/upgrade the schema on startup. In docker-compose the app boots before SQL Server is
+// ready, so we retry for a while. The in-memory DB used by tests isn't relational, so skip it.
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
@@ -45,8 +46,8 @@ await using (var scope = app.Services.CreateAsyncScope())
         }
     }
 
-    // Promote configured admin emails to the Admin role (idempotent). Admins register
-    // normally first; this elevates them on startup. Config: Admin:Emails (env Admin__Emails__0, …).
+    // How the first admin is made: register normally, then list the email in Admin:Emails
+    // (env Admin__Emails__0) and restart. This promotes matching users and is safe to re-run.
     var adminEmails = (app.Configuration.GetSection("Admin:Emails").Get<string[]>() ?? [])
         .Select(e => e.Trim().ToLowerInvariant())
         .Where(e => e.Length > 0)
@@ -65,7 +66,7 @@ await using (var scope = app.Services.CreateAsyncScope())
     }
 }
 
-// Unhandled-exception JSON handler (must be first in the pipeline)
+// Must be registered first so its try/catch wraps the whole pipeline.
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())
@@ -77,5 +78,5 @@ app.MapControllers();
 
 app.Run();
 
-// Exposed so integration tests (Phase 9) can use WebApplicationFactory<Program>.
+// public + partial so the integration tests can spin this up via WebApplicationFactory<Program>.
 public partial class Program { }

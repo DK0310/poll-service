@@ -3,9 +3,8 @@ using PollApi.Services;
 
 namespace PollApi.Controllers;
 
-// Admin-only poll administration. The Gateway gates /api/admin/** with the "admin"
-// policy; this controller re-checks X-User-Role as defense-in-depth (poll-api has no
-// auth scheme of its own — it trusts the Gateway-set headers).
+// Admin-only poll administration. The gateway already restricts /api/admin/** to admins; re-checking
+// X-User-Role here is defense-in-depth (poll-api has no auth scheme, it trusts gateway headers).
 [ApiController]
 [Route("api/admin/polls")]
 public class AdminPollsController : ControllerBase
@@ -13,7 +12,6 @@ public class AdminPollsController : ControllerBase
     private readonly PollService _service;
     public AdminPollsController(PollService service) => _service = service;
 
-    // ── GET /api/admin/polls ────────────────────────────────────
     [HttpGet]
     public async Task<IActionResult> All()
     {

@@ -11,12 +11,11 @@ public class VotesController : ControllerBase
     private readonly VoteService _service;
     public VotesController(VoteService service) => _service = service;
 
-    // ── POST /api/polls/{code}/vote ─────────────────────────────
     [HttpPost("{code}/vote")]
     public async Task<IActionResult> Vote(string code, [FromBody] VoteRequest request)
     {
-        // Public route, but the Gateway forwards X-User-Id when a valid token is present —
-        // captured so a logged-in voter's submission shows up in their vote history.
+        // Voting is public, but if the caller happened to be logged in the gateway forwards their
+        // X-User-Id. We capture it so the vote shows up in that user's history (optional, may be null).
         var userId = Request.Headers.TryGetValue("X-User-Id", out var v) && Guid.TryParse(v.ToString(), out var id)
             ? (Guid?)id
             : null;
@@ -31,7 +30,6 @@ public class VotesController : ControllerBase
         return BadRequest(new { error = result.Error });
     }
 
-    // ── GET /api/polls/{code}/results ───────────────────────────
     [HttpGet("{code}/results")]
     public async Task<IActionResult> Results(string code)
     {
@@ -41,8 +39,7 @@ public class VotesController : ControllerBase
             : NotFound(new { error = result.Error });
     }
 
-    // ── GET /api/polls/{code}/analytics ─────────────────────────
-    // Owner-or-admin only (Gateway requires auth; we enforce ownership here).
+    // Gateway guarantees the caller is authenticated; the owner-or-admin check lives in the service.
     [HttpGet("{code}/analytics")]
     public async Task<IActionResult> Analytics(string code)
     {

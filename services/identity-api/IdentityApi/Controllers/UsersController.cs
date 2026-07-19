@@ -4,8 +4,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace IdentityApi.Controllers;
 
-// Self-service profile. Authenticated at the Gateway (authorization policy); we trust the
-// X-User-Id header it sets — identity-api has no auth scheme of its own.
+// Self-service profile. Auth is enforced at the gateway; we read the caller from X-User-Id
+// (identity-api has no auth scheme of its own).
 [ApiController]
 [Route("api/users")]
 public class UsersController : ControllerBase
@@ -13,7 +13,6 @@ public class UsersController : ControllerBase
     private readonly ProfileService _service;
     public UsersController(ProfileService service) => _service = service;
 
-    // ── GET /api/users/me ───────────────────────────────────────
     [HttpGet("me")]
     public async Task<IActionResult> Me()
     {
@@ -26,7 +25,6 @@ public class UsersController : ControllerBase
             : NotFound(new { error = result.Error });
     }
 
-    // ── PUT /api/users/me ───────────────────────────────────────
     [HttpPut("me")]
     public async Task<IActionResult> Update([FromBody] UpdateProfileRequest request)
     {

@@ -21,30 +21,31 @@ public class VoteService
     }
 
     /// <summary>
-    /// Records a batch survey submission: the voter answers every question, submitted once.
-    /// The whole batch is validated before anything is persisted.
+    /// Records one survey submission (all questions answered at once). Everything is validated
+    /// up front so a partial or invalid batch never touches the database.
     /// </summary>
     public async Task<Result<VoteResultsResponse>> SubmitVoteAsync(string code, VoteRequest request, Guid? userId = null)
     {
-        // 1. Validate the poll exists and is active (inter-service call to Poll API)
+        // The poll lives in poll-api, so we call across to confirm it exists and still accepts votes.
         var poll = await _pollClient.GetPollAsync(code);
         if (poll is null)
             return Result<VoteResultsResponse>.Failure("Poll not found");
         if (!poll.IsActive)
             return Result<VoteResultsResponse>.Failure("Poll is closed or expired");
 
-        // 2. Validate the voter token
         if (string.IsNullOrWhiteSpace(request.VoterToken))
             return Result<VoteResultsResponse>.Failure("Voter token is required");
 
-        // 3. Enforce one submission per voter per poll
+        // NOTE: one-vote-per-poll is keyed on VoterToken, which the browser generates and stores
+        // locally. It stops casual double-voting but isn't tamper-proof (clearing storage or using
+        // incognito gets a new token). For real anti-fraud, gate on the authenticated userId instead.
         if (await _repo.HasVotedAsync(code, request.VoterToken))
             return Result<VoteResultsResponse>.Failure("You have already voted on this poll");
 
         if (request.Answers is null || request.Answers.Count == 0)
             return Result<VoteResultsResponse>.Failure("An answer for every question is required");
 
-        // 4. Validate the whole batch against the poll's questions before saving anything
+        // Validate the whole batch against the poll's real questions/options before saving anything.
         var questionsById = poll.Questions.ToDictionary(q => q.Id);
         var answered = new HashSet<Guid>();
         var votes = new List<Vote>();
@@ -67,7 +68,7 @@ public class VoteService
                 if (string.IsNullOrWhiteSpace(a.TextAnswer))
                     return Result<VoteResultsResponse>.Failure("A text answer is required");
                 textAnswer = a.TextAnswer.Trim();
-                // Author label is display-only and client-supplied (null = anonymous guest).
+                // Author label is display-only and comes from the client (null = anonymous guest).
                 authorName = string.IsNullOrWhiteSpace(request.AuthorName) ? null : request.AuthorName.Trim();
                 authorRole = string.IsNullOrWhiteSpace(request.AuthorRole) ? null : request.AuthorRole.Trim();
                 optionIndex = 0; // not used for tallying
@@ -95,10 +96,9 @@ public class VoteService
         if (answered.Count != poll.Questions.Count)
             return Result<VoteResultsResponse>.Failure("Please answer every question");
 
-        // 5. Persist the whole batch in one transaction
         await _repo.AddRangeAsync(votes);
 
-        // 6. Build updated results and broadcast the whole-poll snapshot to this poll's group
+        // Push the fresh results to everyone watching this poll live (SignalR group = poll code).
         var results = await BuildResultsAsync(code, poll);
         await _hub.Clients.Group(code).SendAsync("ReceiveVoteUpdate", results);
 
@@ -123,14 +123,15 @@ public class VoteService
         if (poll is null)
             return Result<AnalyticsResponse>.Failure("Poll not found");
 
-        // Owner-or-admin gate.
+        // NOTE: the gateway only guarantees the caller is logged in. Ownership is enforced HERE:
+        // unless they're an admin, the caller's id must match the poll's creator.
         if (!isAdmin && (userId is null || poll.CreatorId != userId))
             return Result<AnalyticsResponse>.Failure("Forbidden — poll owner or admin only");
 
         var counts = await _repo.GetVoteCountsAsync(code);
         var submissions = await _repo.GetSubmissionTimestampsAsync(code);
 
-        // Per-minute buckets of distinct submissions (truncate to the minute, UTC) → timeline + peak
+        // Bucket submissions per minute (UTC) to build the timeline, then pick the busiest bucket.
         var timeline = submissions
             .GroupBy(t => new DateTime(t.Year, t.Month, t.Day, t.Hour, t.Minute, 0, DateTimeKind.Utc))
             .Select(g => new TimeBucket { Minute = g.Key, Count = g.Count() })

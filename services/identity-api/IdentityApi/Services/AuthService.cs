@@ -37,7 +37,7 @@ public class AuthService
         _logger = logger;
     }
 
-    // ── Email + password registration (email must be verified via OTP before login) ──
+    // Register with email + password. The account can't log in until the emailed OTP is verified.
     public async Task<Result<RegisterResponse>> RegisterAsync(RegisterRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Email))
@@ -67,7 +67,8 @@ public class AuthService
         var email = Normalize(request.Email ?? string.Empty);
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
 
-        // Same error whether the user is missing or the password is wrong (no account enumeration).
+        // NOTE: same message whether the account is missing or the password is wrong, so an
+        // attacker can't probe which emails are registered (account enumeration).
         if (user is null)
             return Result<string>.Failure("Invalid email or password");
         if (user.PasswordHash is null)
@@ -80,7 +81,7 @@ public class AuthService
         return Result<string>.Success(GenerateToken(user));
     }
 
-    // ── Email verification (consumes an OTP → account usable → token) ──
+    // Verify the emailed OTP: marks the account usable and returns a login token.
     public async Task<Result<string>> VerifyEmailAsync(VerifyEmailRequest request)
     {
         var email = Normalize(request.Email);
@@ -106,7 +107,8 @@ public class AuthService
         var email = Normalize(request.Email);
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
 
-        // Only send when it makes sense; always report success (no enumeration) and honor a cooldown.
+        // Always return success (no enumeration); only actually send when it makes sense and the
+        // per-email cooldown has passed.
         var eligible = user is not null &&
             (purpose == OtpPurpose.PasswordReset || !user.EmailVerified);
         if (eligible && !await OnCooldownAsync(email, purpose))
@@ -115,7 +117,7 @@ public class AuthService
         return Result<bool>.Success(true);
     }
 
-    // ── Google sign-in (verify ID token → find-or-create → token) ──
+    // Google sign-in: verify the ID token, then find-or-create the user and issue our own token.
     public async Task<Result<GoogleAuthResponse>> GoogleAsync(GoogleLoginRequest request)
     {
         var gUser = await _google.VerifyAsync(request.IdToken);
@@ -153,7 +155,7 @@ public class AuthService
         });
     }
 
-    // ── Set a password for a (Google) account that has none — enables email+password login ──
+    // Give a passwordless (Google) account a password so it can also log in with email + password.
     public async Task<Result<bool>> SetPasswordAsync(Guid userId, SetPasswordRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < MinPasswordLength)
@@ -170,7 +172,7 @@ public class AuthService
         return Result<bool>.Success(true);
     }
 
-    // ── Request an OTP to change the current password (authenticated; sent to the user's own email) ──
+    // Email an OTP to the logged-in user's own address so they can confirm a password change.
     public async Task<Result<bool>> RequestPasswordChangeCodeAsync(Guid userId)
     {
         var user = await _db.Users.FindAsync(userId);
@@ -186,7 +188,9 @@ public class AuthService
         return Result<bool>.Success(true);
     }
 
-    // ── Change password (from the profile; verifies the current one + an emailed OTP when set) ──
+    // Change password from the profile page. If a password already exists, both the current
+    // password and an emailed OTP must check out; a Google account setting one for the first
+    // time needs neither.
     public async Task<Result<bool>> ChangePasswordAsync(Guid userId, ChangePasswordRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < MinPasswordLength)
@@ -196,8 +200,6 @@ public class AuthService
         if (user is null)
             return Result<bool>.Failure("User not found");
 
-        // When a password already exists, the current one must match AND an emailed OTP must be
-        // consumed. Otherwise this is a first-time set (Google account) — no current, no code.
         if (user.PasswordHash is not null)
         {
             if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
@@ -213,12 +215,13 @@ public class AuthService
         return Result<bool>.Success(true);
     }
 
-    // ── Password reset ──
+    // Forgot password: email a reset OTP.
     public async Task<Result<bool>> ForgotPasswordAsync(ForgotPasswordRequest request)
     {
         var email = Normalize(request.Email);
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
-        // Always report success (no account enumeration); only send if the account exists.
+        // NOTE: always returns success even for an unknown email (no account enumeration); the OTP
+        // is only actually sent when the account exists and the cooldown has passed.
         if (user is not null && !await OnCooldownAsync(email, OtpPurpose.PasswordReset))
             await IssueAndSendCodeAsync(email, OtpPurpose.PasswordReset);
 
@@ -245,7 +248,7 @@ public class AuthService
         return Result<bool>.Success(true);
     }
 
-    // ── Helpers ─────────────────────────────────────────────────
+    // Helpers
     private static string Normalize(string email) => email.Trim().ToLowerInvariant();
 
     private static string GenerateCode() =>
@@ -264,6 +267,8 @@ public class AuthService
         _db.VerificationCodes.Add(new VerificationCode
         {
             Email = email,
+            // NOTE: the OTP is hashed (like a password), never stored in plaintext. Verification
+            // re-hashes the submitted code and compares, so a DB leak doesn't expose live codes.
             CodeHash = BCrypt.Net.BCrypt.HashPassword(code),
             Purpose = purpose,
             ExpiresAt = DateTime.UtcNow.Add(CodeLifetime)
@@ -276,8 +281,8 @@ public class AuthService
             : ("Verify your Poll Builder email",
                $"Your verification code is {code}. It expires in 10 minutes.");
 
-        // A mail failure must not surface as a 500 or leak which emails exist — log and move on.
-        // The code is already stored, so the user can retry with "resend".
+        // Don't let a mail failure become a 500 or reveal which emails exist. The code is already
+        // saved, so the user can just hit "resend".
         try
         {
             await _email.SendAsync(email, subject, body);
@@ -306,11 +311,16 @@ public class AuthService
 
     private string GenerateToken(User user)
     {
+        // NOTE: signed with Jwt:Secret using HMAC-SHA256. The gateway verifies with the SAME secret,
+        // so the two configs must match exactly. The "role" claim is what the gateway's admin policy
+        // and the downstream X-User-Role header are built from.
         var secret = _config["Jwt:Secret"]
             ?? throw new InvalidOperationException("Jwt:Secret is not configured");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+        // NOTE: 7-day lifetime with no server-side revocation. A jti is included but not tracked,
+        // so logging out or changing a password does NOT invalidate tokens already issued.
         var token = new JwtSecurityToken(
             claims:
             [

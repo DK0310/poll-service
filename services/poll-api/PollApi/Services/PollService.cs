@@ -31,8 +31,8 @@ public class PollService
             if (!Enum.TryParse<PollQuestionType>(q.Type, ignoreCase: true, out var type))
                 return Result<PollResponse>.Failure($"{label}: invalid question type");
 
-            // Options depend on the question type: SingleChoice uses the creator's options;
-            // YesNo and Rating are server-generated; OpenText has no options.
+            // Options depend on the type: SingleChoice uses what the creator sent, YesNo and Rating
+            // are generated server-side, OpenText has none.
             var optionsResult = BuildOptionTexts(type, q.Options);
             if (!optionsResult.IsSuccess)
                 return Result<PollResponse>.Failure($"{label}: {optionsResult.Error!}");
@@ -92,9 +92,9 @@ public class PollService
         if (poll is null)
             return Result<PollResponse>.Failure("Poll not found");
 
-        // Lazy expiry: if the poll is past ExpiresAt but the background cleanup sweep
-        // hasn't closed it yet (e.g. the instance was idle on a free-tier host), persist
-        // the close now — so auto-close doesn't depend on the sweep being awake.
+        // NOTE: second, lazy path to closing a poll. The background sweep (PollCleanupService) is the
+        // primary one, but on a free-tier host the instance may have been asleep, so if we read a poll
+        // that's past ExpiresAt but still open, close it now. Belt-and-braces with the sweep.
         if (poll.IsExpired && !poll.IsClosed)
         {
             poll.Status = PollStatus.Closed;

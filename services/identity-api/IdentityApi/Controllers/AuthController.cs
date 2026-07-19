@@ -11,8 +11,7 @@ public class AuthController : ControllerBase
     private readonly AuthService _service;
     public AuthController(AuthService service) => _service = service;
 
-    // ── POST /api/auth/register ─────────────────────────────────
-    // Creates an unverified account and emails an OTP. No token until the email is verified.
+    // Creates an unverified account and emails an OTP. No token is returned until the email is verified.
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
@@ -22,7 +21,6 @@ public class AuthController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
-    // ── POST /api/auth/verify-email  { email, code } ────────────
     [HttpPost("verify-email")]
     public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequest request)
     {
@@ -32,7 +30,6 @@ public class AuthController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
-    // ── POST /api/auth/resend-code  { email, purpose } ──────────
     [HttpPost("resend-code")]
     public async Task<IActionResult> ResendCode([FromBody] ResendCodeRequest request)
     {
@@ -42,9 +39,8 @@ public class AuthController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
-    // ── POST /api/auth/login ────────────────────────────────────
-    // Bad credentials return 400 (not 401) so the frontend's global 401 handler
-    // doesn't hijack a failed login attempt.
+    // NOTE: bad credentials return 400, not 401, on purpose. The frontend has a global 401 handler
+    // that force-logs-out; a failed login must not trip it.
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
@@ -54,7 +50,6 @@ public class AuthController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
-    // ── POST /api/auth/google  { idToken } ──────────────────────
     [HttpPost("google")]
     public async Task<IActionResult> Google([FromBody] GoogleLoginRequest request)
     {
@@ -64,8 +59,7 @@ public class AuthController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
-    // ── POST /api/auth/set-password  { password } ───────────────
-    // Authenticated at the Gateway (authorization policy); we trust the X-User-Id header it sets.
+    // Gateway enforces auth on this route; we read the caller from the X-User-Id header it sets.
     [HttpPost("set-password")]
     public async Task<IActionResult> SetPassword([FromBody] SetPasswordRequest request)
     {
@@ -79,8 +73,7 @@ public class AuthController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
-    // ── POST /api/auth/change-password/request-code ─────────────
-    // Authenticated at the Gateway; emails a PasswordChange OTP to the caller's own address.
+    // Emails a password-change OTP to the caller's own address (auth enforced at the gateway).
     [HttpPost("change-password/request-code")]
     public async Task<IActionResult> RequestChangePasswordCode()
     {
@@ -94,8 +87,6 @@ public class AuthController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
-    // ── POST /api/auth/change-password  { currentPassword, newPassword, code } ─
-    // Authenticated at the Gateway; we trust the X-User-Id header it sets.
     [HttpPost("change-password")]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
     {
@@ -109,8 +100,7 @@ public class AuthController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
-    // ── POST /api/auth/forgot-password  { email } ───────────────
-    // Always 200 (no account enumeration).
+    // Always returns 200, even for an unknown email, so it can't be used to probe which emails exist.
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
     {
@@ -118,7 +108,6 @@ public class AuthController : ControllerBase
         return Ok();
     }
 
-    // ── POST /api/auth/reset-password  { email, code, newPassword } ─
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
@@ -128,6 +117,7 @@ public class AuthController : ControllerBase
             : BadRequest(new { error = result.Error });
     }
 
+    // The gateway put this here after validating the JWT; identity-api never re-parses the token.
     private Guid? CallerId()
         => Request.Headers.TryGetValue("X-User-Id", out var v) && Guid.TryParse(v.ToString(), out var id)
             ? id

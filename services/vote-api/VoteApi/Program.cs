@@ -21,17 +21,16 @@ builder.Services.AddScoped<AskRepository>();
 builder.Services.AddScoped<AskService>();
 builder.Services.AddSignalR();
 
-// CORS for SignalR — credentials must be allowed for the WebSocket.
-// In practice the browser connects via the Gateway (which also sets CORS); this is the
-// documented origin for direct/proxied SignalR traffic (ARCHITECTURE → Environment Config).
+// AllowCredentials is required for the SignalR websocket. Browsers reach the hub through the
+// gateway, so the allowed origin is the gateway URL.
 builder.Services.AddCors(opt => opt.AddPolicy(SignalRCors, p =>
     p.WithOrigins(builder.Configuration["Gateway:Url"] ?? "http://localhost:5000")
      .AllowAnyHeader()
      .AllowAnyMethod()
      .AllowCredentials()));
 
-// Typed HttpClient for the inter-service call to the Poll API.
-// Base address comes from config (docker: http://poll-api:8080); localhost fallback for dev.
+// vote-api validates every vote against the poll by calling poll-api. Base address is a docker
+// service name in compose (http://poll-api:8080), with a localhost fallback for running locally.
 builder.Services.AddHttpClient<PollClientService>(client =>
 {
     var pollApi = builder.Configuration["Services:PollApi"] ?? "http://localhost:5001";
@@ -43,18 +42,17 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-// Apply EF Core migrations on startup, retrying while SQL Server starts (docker-compose).
-// Skipped for non-relational providers (the in-memory DB used by integration tests).
+// Create/upgrade the schema on startup, retrying while SQL Server comes up (docker-compose).
+// Skipped for the non-relational in-memory DB the integration tests use.
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<VoteDbContext>();
     if (db.Database.IsRelational() && !EF.IsDesignTime)
     {
-        // Opt-in, temporary escape hatch: squashing migration history (see the multi-question
-        // refactor) leaves __EFMigrationsHistory empty while the old tables still exist, so the
-        // fresh "InitialCreate" collides (SQL error 2714, "already an object named ..."). Setting
-        // Migrations:AllowSchemaReset (env Migrations__AllowSchemaReset=true) for a single deploy
-        // wipes the stale schema once and retries — remove the env var again once it's applied.
+        // NOTE: destructive, deliberately gated. When the migration history was squashed the
+        // fresh InitialCreate collides with tables that already exist (SQL error 2714). Setting
+        // Migrations:AllowSchemaReset=true for ONE deploy drops every table and re-runs migrations.
+        // Never leave this env var on in production: on the next boot it will wipe all data.
         var canResetOnCollision = builder.Configuration.GetValue("Migrations:AllowSchemaReset", false);
         for (var attempt = 1; ; attempt++)
         {
@@ -76,7 +74,7 @@ await using (var scope = app.Services.CreateAsyncScope())
     }
 }
 
-// Unhandled-exception JSON handler (must be first in the pipeline)
+// Must be registered first so its try/catch wraps the whole pipeline.
 app.UseMiddleware<ErrorHandlingMiddleware>();
 
 app.UseCors(SignalRCors);
@@ -91,9 +89,8 @@ app.MapHub<PollHub>("/hubs/poll");
 
 app.Run();
 
-// Drops every FK constraint then every table, so a squashed migration can recreate the schema
-// from scratch on a database that predates the squash. Order-independent — the FK pass runs first
-// so DROP TABLE never hits a still-referenced object.
+// Drops all FK constraints first, then all tables, so DROP TABLE never trips over a still-referenced
+// object. Lets a squashed migration rebuild the schema on a database that predates the squash.
 static async Task DropAllTablesAsync(DatabaseFacade database)
 {
     await database.ExecuteSqlRawAsync("""
